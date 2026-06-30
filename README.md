@@ -65,14 +65,19 @@ viewer is demoable with zero LDraw library setup.
 
 | Week | Deliverable |
 |------|-------------|
-| 1 | LDraw library + viewer + repo scaffold (THIS WEEK) |
-| 2 | Optional Meshy text-to-3D path (image conditioning) |
-| 3 | Voxelization + naive brick rendering |
-| 4 | **LegoGPT integrated on Modal** — text → bricks end-to-end |
-| 5 | Stability + color palette + chunked / subagent scaffold lit up |
+| 1 | LDraw library + viewer + repo scaffold |
+| 2 | LegoGPT runs locally via smoke test (pre-flight) |
+| 3 | LegoGPT on Modal, called from /api/generate |
+| 4 | **End-to-end: prompt → .ldr in viewer** (real LEGO output) |
+| 5 | Chunked / "subagent" generation for larger builds |
 | 6 | Step planner + interactive step-through in viewer |
 | 7 | Parts list with BrickLink prices + LDraw export polish |
 | 8 | Share URLs, screenshot/AR, demo video, launch |
+
+**Note:** Earlier plan included Meshy text-to-3D as Week 2. Dropped it after
+user hit reliability issues with free-tier API queue; LegoGPT takes text
+directly so the mesh stage was unnecessary for v1. Mesh stage returns in v1.5
+for photo-upload conditioning.
 
 ## Stack
 

@@ -1,47 +1,30 @@
 import { NextResponse } from "next/server";
-import { getTextTo3DTask } from "@/lib/meshy";
 
 /**
  * GET /api/generate/[id]
  *
- * Polls a Meshy text-to-3D task by id. Returns:
- *   - status: PENDING | IN_PROGRESS | SUCCEEDED | FAILED | EXPIRED
- *   - progress: 0..100 (when in progress)
- *   - modelGlbUrl: the generated .glb (when SUCCEEDED)
- *   - thumbnailUrl: a quick render preview (when SUCCEEDED)
+ * Polling endpoint for generation status. Wired to the Modal worker in
+ * Week 4 — for now it just returns a placeholder so the UI doesn't 500.
  *
- * Week 4 update: when SUCCEEDED, this route will trigger the Modal worker
- * to convert the .glb → voxels → LegoGPT brick decomposition.
+ * Final shape (Week 4):
+ *   {
+ *     id, status, progress,
+ *     ldrUrl?: string,
+ *     previewUrl?: string,
+ *     stats?: { totalBricks, rejections, regenerations, gpuSeconds }
+ *   }
  */
 export async function GET(
   _req: Request,
   ctx: { params: { id: string } }
 ) {
-  const taskId = ctx.params?.id;
-  if (!taskId) {
+  const id = ctx.params?.id;
+  if (!id) {
     return NextResponse.json({ error: "task id required" }, { status: 400 });
   }
-  if (!process.env.MESHY_API_KEY) {
-    return NextResponse.json(
-      { error: "MESHY_API_KEY not configured" },
-      { status: 500 }
-    );
-  }
-  try {
-    const t = await getTextTo3DTask(taskId);
-    return NextResponse.json({
-      taskId,
-      status: t.status,
-      progress: t.progress,
-      modelGlbUrl: t.model_urls?.glb,
-      modelObjUrl: t.model_urls?.obj,
-      thumbnailUrl: t.thumbnail_url,
-      error: t.task_error?.message,
-    });
-  } catch (err: any) {
-    return NextResponse.json(
-      { error: err?.message ?? String(err) },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json({
+    id,
+    status: "NOT_READY",
+    message: "LegoGPT worker not yet deployed.",
+  });
 }

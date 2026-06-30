@@ -1,26 +1,35 @@
 import { NextResponse } from "next/server";
-import { createTextTo3DTask } from "@/lib/meshy";
 
 /**
  * POST /api/generate
  *
- * Stage 1 of the LEGO generation pipeline.
+ * v1 path (text-direct): prompt → Modal worker (LegoGPT) → bricks.
  *
- * Today (Week 2): kick off a Meshy text-to-3D job. Returns the Meshy task id
- *   so the client can poll /api/generate/[id] for progress.
+ * Wired up to the Modal worker in Week 4. Until WORKER_URL is set, this
+ * route returns a "not ready" stub so the /design page can demo the UI flow
+ * without erroring out.
  *
- * Soon (Week 4): when Meshy SUCCEEDED, hand the mesh off to the Modal worker
- *   running LegoGPT for the brick decomposition + step planning + parts list.
- *
- * For now this route lets us verify Meshy works end-to-end. A successful call
- * proves: prompt → 3D mesh URL, which is the input we'll feed into LegoGPT.
+ * Notes on the design choice:
+ *   - We previously had a Meshy text-to-3D stage in front of LegoGPT. We
+ *     pulled it out because LegoGPT accepts text prompts directly (per the
+ *     CMU paper / repo: `uv run infer` takes a text prompt). Mesh-stage is
+ *     a v1.5 addition for photo-upload conditioning. See src/lib/meshy.ts —
+ *     code kept for later, not wired up.
  */
+
+interface GenerateRequest {
+  prompt?: string;
+  /** Override grid size; default 20 = LegoGPT native max single-pass. */
+  grid?: number;
+  /** Force chunked path for builds > LegoGPT cap. */
+  chunked?: boolean;
+}
+
 export async function POST(req: Request) {
   try {
-    const { prompt, mode } = (await req.json()) as {
-      prompt?: string;
-      mode?: "preview" | "refine";
-    };
+    const body = (await req.json()) as GenerateRequest;
+    const { prompt, grid = 20, chunked = false } = body;
+
     if (!prompt || typeof prompt !== "string" || prompt.length < 3) {
       return NextResponse.json(
         { error: "Provide a prompt of at least 3 characters." },
@@ -34,34 +43,44 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!process.env.MESHY_API_KEY) {
-      return NextResponse.json(
-        {
-          status: "stub",
-          message:
-            "MESHY_API_KEY not configured. Set it in .env.local (https://www.meshy.ai/) and restart `npm run dev`.",
-          received: { prompt, mode: mode ?? "preview" },
-        },
-        { status: 200 }
-      );
+    const workerUrl = process.env.WORKER_URL;
+    const workerKey = process.env.WORKER_API_KEY;
+
+    if (!workerUrl) {
+      return NextResponse.json({
+        status: "not_ready",
+        message:
+          "LegoGPT worker not yet deployed. See README.md and worker/README.md " +
+          "for the setup steps: (1) Request HF access to Llama-3.2-1B-Instruct, " +
+          "(2) Get a Gurobi academic license, (3) Deploy worker/modal_app.py to " +
+          "Modal, (4) Set WORKER_URL in .env.local.",
+        prompt,
+      });
     }
 
-    const taskId = await createTextTo3DTask({
-      prompt,
-      mode: mode ?? "preview",
-      // Lower polycount = faster generation and easier to voxelize for LegoGPT.
-      // Meshy's default 30k is overkill for our LEGO use case.
-      targetPolycount: 5000,
+    // Real call (Week 4). The worker is responsible for:
+    //   - Running LegoGPT inference (text -> bricks)
+    //   - Chunked / 'subagent' generation if grid > LegoGPT cap
+    //   - Stability check via Gurobi
+    //   - Color palette snap
+    //   - Step planner (layer slice + subassembly detection)
+    //   - Returning {bricks, ldr, preview_png_b64, stats}
+    const r = await fetch(workerUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(workerKey ? { "x-brickforge-key": workerKey } : {}),
+      },
+      body: JSON.stringify({ prompt, grid, chunked }),
     });
-
-    return NextResponse.json({
-      status: "queued",
-      taskId,
-      message:
-        "Meshy text-to-3D job submitted. Poll /api/generate/" +
-        taskId +
-        " for status. Typically completes in 30-90 seconds.",
-    });
+    const j = await r.json();
+    if (!r.ok) {
+      return NextResponse.json(
+        { error: j.error ?? `worker ${r.status}` },
+        { status: 502 }
+      );
+    }
+    return NextResponse.json(j);
   } catch (err: any) {
     console.error("/api/generate error", err);
     return NextResponse.json(
