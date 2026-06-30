@@ -130,15 +130,23 @@ def generate(prompt: str, max_bricks: int = 200, seed: int | None = None) -> dic
     """Run LegoGPT for a single prompt. Returns {ldr_text, brick_count, ...}."""
     start = time.time()
 
-    # Set up Gurobi license. LegoGPT expects it at one of:
-    #   $GRB_LICENSE_FILE path, or ~/gurobi.lic, or /opt/gurobi/gurobi.lic
-    grb = os.environ.get("GRB_LICENSE_FILE")
-    if grb and not Path(grb).exists() and grb.startswith("# Gurobi"):
-        # If the secret was uploaded as the file contents rather than a path,
-        # write it out to a real file and update the env var.
+    # Set up Gurobi license. Modal injects the secret value as an env var
+    # STRING, but Gurobi tries to OPEN the value as a file path. When users
+    # paste the .lic file contents into the Modal secret (which is what our
+    # DEPLOY.md tells them to do), GRB_LICENSE_FILE ends up containing the
+    # license TEXT, not a path. Detect this and materialize it to a real file.
+    grb = os.environ.get("GRB_LICENSE_FILE", "")
+    looks_like_file_contents = (
+        "\n" in grb              # multi-line
+        or "LICENSEID=" in grb   # Gurobi license fields
+        or "TYPE=" in grb
+        or grb.lstrip().startswith("#")  # comment header
+    )
+    if grb and (looks_like_file_contents or not Path(grb).exists()):
         lic_path = Path("/root/gurobi.lic")
         lic_path.write_text(grb)
         os.environ["GRB_LICENSE_FILE"] = str(lic_path)
+        print(f"[brickforge] Wrote Gurobi license to {lic_path} ({len(grb)} chars)")
 
     # LegoGPT login to HF (for gated Llama weights). Token is in HF_TOKEN.
     hf_token = os.environ.get("HF_TOKEN")
