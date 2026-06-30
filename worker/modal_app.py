@@ -183,18 +183,19 @@ def generate(prompt: str, max_bricks: int = 200, seed: int | None = None) -> dic
     workdir = Path("/tmp/brickforge-run")
     workdir.mkdir(parents=True, exist_ok=True)
 
-    # LegoGPT's `uv run infer` is interactive and asks THREE questions:
+    # LegoGPT's `uv run infer` is an INTERACTIVE LOOP. It asks:
     #   1. "Enter a prompt, or <Return> to exit: "
     #   2. "Enter a filename to save the output image (default=output.png): "
     #   3. "Enter a generation seed (default=42): "
-    # We pipe all three via stdin. Empty lines 2 & 3 accept defaults; pass the
-    # seed explicitly when caller specifies one.
+    #   then generates, then loops back to step 1: "Enter another prompt, or <Return> to exit:"
+    # We send: prompt, blank (default filename), seed-or-blank, then blank to exit the loop.
     seed_input = f"{seed}\n" if seed is not None else "\n"
     cmd = ["uv", "run", "infer"]
     proc = subprocess.run(
         cmd,
         cwd="/opt/legogpt",
-        input=f"{prompt}\n\n{seed_input}",  # prompt, default filename, seed (or default)
+        # prompt + filename(default) + seed(default) + blank-line-to-exit-loop
+        input=f"{prompt}\n\n{seed_input}\n",
         text=True,
         capture_output=True,
         timeout=540,
