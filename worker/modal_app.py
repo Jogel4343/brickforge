@@ -184,7 +184,7 @@ def _b64(b: bytes) -> str:
     timeout=600,
     secrets=[modal.Secret.from_name("brickforge-worker-key")],  # optional shared secret
 )
-@modal.web_endpoint(method="POST", label="brickforge-generate")
+@modal.fastapi_endpoint(method="POST", label="brickforge-generate")
 def http_generate(item: dict) -> dict:
     """POST {prompt: string, grid?: number, chunked?: boolean}."""
     # Auth (simple shared-secret header; tighten before public launch).
