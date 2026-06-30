@@ -282,6 +282,47 @@ def _slugify(text: str) -> str:
 
 
 @app.local_entrypoint()
+def shotgun(prompt: str = "a small dog", count: int = 5):
+    """Generate the SAME prompt multiple times with different seeds.
+    Reveals how much LegoGPT's output quality varies seed-to-seed.
+
+    Saves each result to ./generations/<slug>__seed<N>.{ldr,png}
+
+    Usage:
+        python -m modal run worker/modal_app.py::shotgun --prompt "a small dog" --count 5
+    """
+    slug = _slugify(prompt)
+    out_dir = Path("generations")
+    out_dir.mkdir(exist_ok=True)
+
+    print(f"Shotgun test — prompt: {prompt!r} — {count} seeds in parallel")
+    # Spawn all generations in parallel; Modal will scale containers as needed.
+    seeds = list(range(1, count + 1))
+    futures = [generate.spawn(prompt=prompt, seed=s) for s in seeds]
+    for s, fut in zip(seeds, futures):
+        try:
+            result = fut.get()
+        except Exception as exc:
+            print(f"  seed {s}: EXCEPTION {exc}")
+            continue
+        if "error" in result:
+            print(f"  seed {s}: FAILED {result.get('error')}")
+            continue
+        bricks = result.get("brick_count", 0)
+        gpu = result.get("gpu_seconds", 0)
+        print(f"  seed {s}: {bricks} bricks in {gpu}s")
+        if result.get("ldr_text"):
+            (out_dir / f"{slug}__seed{s}.ldr").write_text(result["ldr_text"])
+        if result.get("preview_png_b64"):
+            import base64
+
+            (out_dir / f"{slug}__seed{s}.png").write_bytes(
+                base64.b64decode(result["preview_png_b64"])
+            )
+    print(f"\nDone. Check ./generations/{slug}__seed*.png to compare.")
+
+
+@app.local_entrypoint()
 def smoke(prompt: str = "a small chair", name: str = ""):
     """Run a single LegoGPT inference and print the result summary.
 
