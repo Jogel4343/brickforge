@@ -22,20 +22,42 @@ export default function DesignPage() {
   const [glbUrl, setGlbUrl] = useState<string | null>(null);
   const [thumb, setThumb] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [debug, setDebug] = useState<string | null>(null);
+  const [pollCount, setPollCount] = useState(0);
+  const [startedAt, setStartedAt] = useState<number | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Poll Meshy task status when we have a taskId.
   useEffect(() => {
     if (!taskId) return;
-    if (pollRef.current) clearInterval(pollRef.current);
+    // Belt-and-suspenders: clear any prior interval before starting a new one.
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+    setPollCount(0);
+    setStartedAt(Date.now());
+
+    let stopped = false;
+    const stop = () => {
+      stopped = true;
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+
     const tick = async () => {
+      if (stopped) return;
+      setPollCount((n) => n + 1);
       try {
         const r = await fetch(`/api/generate/${taskId}`);
         const j = await r.json();
+        setDebug(JSON.stringify(j, null, 2));
         if (j.error) {
           setStatus("failed");
           setMessage(j.error);
-          if (pollRef.current) clearInterval(pollRef.current);
+          stop();
           return;
         }
         setProgress(j.progress ?? 0);
@@ -43,11 +65,11 @@ export default function DesignPage() {
           setStatus("succeeded");
           setGlbUrl(j.modelGlbUrl ?? null);
           setThumb(j.thumbnailUrl ?? null);
-          if (pollRef.current) clearInterval(pollRef.current);
+          stop();
         } else if (j.status === "FAILED" || j.status === "EXPIRED") {
           setStatus("failed");
           setMessage(j.error ?? j.status);
-          if (pollRef.current) clearInterval(pollRef.current);
+          stop();
         } else {
           setStatus("in_progress");
         }
@@ -55,11 +77,10 @@ export default function DesignPage() {
         // Transient — keep polling.
       }
     };
+
     tick();
     pollRef.current = setInterval(tick, 4000);
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
+    return stop;
   }, [taskId]);
 
   async function onSubmit(e: React.FormEvent) {
@@ -134,6 +155,26 @@ export default function DesignPage() {
       {message && (
         <div className="mt-6 rounded-md bg-neutral-900 border border-neutral-800 p-4 text-sm">
           {message}
+        </div>
+      )}
+
+      {(status === "in_progress" || status === "queued" || status === "succeeded" || status === "failed") && taskId && (
+        <div className="mt-6 rounded-md bg-neutral-900 border border-neutral-800 p-4">
+          <div className="flex items-center justify-between text-xs text-neutral-400 mb-2">
+            <span>
+              Task <span className="font-mono">{taskId.slice(0, 8)}…</span> ·
+              {" "}poll #{pollCount}{" "}
+              {startedAt && (
+                <>· {Math.floor((Date.now() - startedAt) / 1000)}s elapsed</>
+              )}
+            </span>
+            <span className="uppercase text-[10px] tracking-wider">{status}</span>
+          </div>
+          {debug && (
+            <pre className="bg-black/40 rounded p-3 text-[11px] overflow-auto max-h-64 text-neutral-300">
+              {debug}
+            </pre>
+          )}
         </div>
       )}
 
