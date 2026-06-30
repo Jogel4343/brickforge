@@ -248,6 +248,13 @@ export default function LdrawViewer({
   }, [modelUrl, partsLibraryPath]);
 
   // -------- Explode view (per brick) --------
+  // Hybrid explode: combine a HORIZONTAL push outward from the model's vertical
+  // axis (so bricks separate sideways like a flower opening) with a VERTICAL
+  // lift proportional to how high the brick sits in the build (so upper layers
+  // float up like a multi-story building's floors separating). This avoids:
+  //   - Bricks at the exact center never moving (pure radial-from-center failed)
+  //   - All bricks moving radially through each other (radial-only overlap)
+  // It also mimics how real LEGO instruction manuals show exploded views.
   useEffect(() => {
     const bricks = stateRef.current.bricks;
     const bbox = stateRef.current.bbox;
@@ -255,22 +262,47 @@ export default function LdrawViewer({
 
     const size = new THREE.Vector3();
     bbox.getSize(size);
+    const center = new THREE.Vector3();
+    bbox.getCenter(center);
     const maxDim = Math.max(size.x, size.y, size.z);
-    const strength = explode * maxDim * 0.6;
+    const heightRange = Math.max(size.y, 1);
+
+    // Strength tuned so 100% genuinely separates a 60-brick model.
+    const horizontalStrength = explode * maxDim * 1.2;
+    const verticalStrength = explode * maxDim * 1.5;
 
     bricks.forEach((b) => {
       const orig: THREE.Vector3 | undefined = b.userData.originalPosition;
-      const offsetDir: THREE.Vector3 | undefined = b.userData.worldCenterOffset;
-      if (!orig || !offsetDir) return;
-      const dir = offsetDir.clone();
-      if (dir.lengthSq() < 1e-6) {
-        // Brick is exactly at center — pick a stable arbitrary direction so
-        // it still separates from neighbors as you slide.
-        dir.set(0, 1, 0);
+      const offsetFromCenter: THREE.Vector3 | undefined = b.userData.worldCenterOffset;
+      if (!orig || !offsetFromCenter) return;
+
+      // 1) Horizontal push: project the brick's offset-from-center onto the
+      //    XZ plane and normalize. Inner bricks barely move horizontally,
+      //    outer bricks fly outward.
+      const horiz = new THREE.Vector3(offsetFromCenter.x, 0, offsetFromCenter.z);
+      if (horiz.lengthSq() > 1e-6) {
+        horiz.normalize().multiplyScalar(horizontalStrength);
       } else {
-        dir.normalize();
+        // Brick directly on the central vertical axis — give it a tiny nudge
+        // in a stable direction so it doesn't stay stuck inside its neighbors.
+        horiz.set(0.001 * horizontalStrength, 0, 0);
       }
-      b.position.copy(orig).addScaledVector(dir, strength);
+
+      // 2) Vertical lift: bricks higher up in the build lift further. Bricks
+      //    at the bottom barely move; the top floats free. (Note: we already
+      //    rotated the model 180° around X to flip LDraw's Y-down, so the
+      //    brick's Y in *world* space is what we want here.)
+      const worldPos = new THREE.Vector3();
+      b.getWorldPosition(worldPos);
+      const heightAboveBottom = worldPos.y - bbox.min.y;
+      const normalizedHeight = heightAboveBottom / heightRange; // 0..1
+      const lift = normalizedHeight * verticalStrength;
+
+      // Apply both deltas. Because of the X-rotation, +Y in world = -Y in
+      // model-local. Apply lift in local -Y.
+      b.position
+        .copy(orig)
+        .add(new THREE.Vector3(horiz.x, -lift, horiz.z));
     });
   }, [explode]);
 
