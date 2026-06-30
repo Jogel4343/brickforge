@@ -1,0 +1,16 @@
+# Brickforge worker dependencies. Pinned loosely; LegoGPT's own pyproject.toml takes precedence
+# when running its `uv run infer` entrypoint.
+modal>=0.64
+fastapi>=0.110
+pydantic>=2.7
+numpy>=1.26
+trimesh>=4.4
+networkx>=3.3
+pillow>=10.3
+supabase>=2.5
+httpx>=0.27
+python-dotenv>=1.0
+
+# LegoGPT is installed from source as a submodule / git pin (see modal_app.py).
+# Gurobi is a runtime requirement; install separately via pip + license file.
+gurobipy>=11
