@@ -168,7 +168,8 @@ add few-shot examples in the system prompt.
 - LLM call with tool-calling enabled. Tools:
   - `lookup_part(description: str) -> Part`: query our LDraw catalog (in
     Supabase, seeded from LDraw library), returns real part_id, dimensions,
-    color options.
+    color options. **Returns a handle/token the LLM must reference; the LLM
+    never writes a part_id as free text.**
   - `find_similar_parts(part_id: str) -> list[Part]`: alternatives if LLM
     wants a 2x4 plate but it's expensive; suggest 2x2 + 2x2.
   - `check_assembly_validity(parts: list) -> ValidationResult`: pre-validate
@@ -184,6 +185,27 @@ add few-shot examples in the system prompt.
 **Critical detail**: LLM is NOT asked to place exact coordinates. Just
 "the cockpit is at the front, ~30% up the body length." Stage 3 resolves
 exact positions deterministically.
+
+**Hallucination defense — three layers**:
+
+The LLM is unreliable about naming real parts. Three defense layers ensure
+NO hallucinated part_id ever reaches the solver:
+
+1. **System prompt constraint**: "Never write a part ID or part name in your
+   response text. Always call `lookup_part(query)` first. If a part isn't in
+   the catalog, choose a different shape."
+
+2. **Structured output handles**: The `parts` field in the output JSON can
+   only contain references to results from `lookup_part`. Each lookup returns
+   a structured object the LLM passes through verbatim. We reject any
+   `parts` entry that wasn't returned by a tool call in this session.
+
+3. **Final validation sweep**: Before passing to Stage 3, every part_id in
+   the plan is re-validated against the catalog. Any unknown ID rejects the
+   whole plan; we re-prompt with the failing IDs listed.
+
+Result: the LLM literally cannot insert a non-existent part. Even if it
+tries to confabulate, the layers catch it.
 
 **Risk**: LLM may produce sub-assemblies that can't fit together. Mitigation:
 the validity tool checks compatibility before each addition; failures fed
@@ -255,14 +277,21 @@ connections separately.
    - `1 <color> <x> <y> <z> <transform matrix> <part_id>.dat`
    - Reference LDraw spec: https://www.ldraw.org/article/218.html
 
-2. **`.io` (Stud.io native format) writer** (~stretch, v1.5)
-   - Stud.io's format is a renamed zip with XML inside
-   - Not strictly needed for v1; `.ldr` opens in Stud.io fine
+2. **BrickLink XML wanted-list output** (REPLACES the `.io` writer)
+   - BrickLink's [own XML import format](https://www.bricklink.com/help.asp?helpID=207) for wanted lists
+   - Designed for third-party tools to generate; explicitly supported by BL
+   - User uploads to BrickLink in one click to populate a wanted list and shop
+   - NOTE: we deliberately do NOT generate Stud.io's `.io` format — their
+     [license agreement](https://studiohelp.bricklink.com/hc/en-us/articles/6606313426711-Studio-Software-License-Agreement)
+     restricts derivative works and production use. `.ldr` is the open
+     standard alternative.
 
-3. **BrickLink parts list**
+3. **BrickLink parts list (with API integration)**
    - Map LDraw part_id → BrickLink part_id (mapping table from Rebrickable)
    - Query BrickLink API for live pricing + availability
    - Output CSV with columns: part_id, name, color, quantity, avg_price, link
+   - **Aggressive caching**: BL API has 5K calls/day per key. Cache part
+     metadata in Supabase, refresh nightly via background job.
 
 4. **Auto-instructions** (v1.5)
    - Layer-slicing + subassembly detection (already scaffolded in
@@ -292,6 +321,55 @@ to 3/month for free users.
 
 ---
 
+## Legal & licensing constraints
+
+Before building, the legal landscape we operate within (researched 2026-06-30):
+
+### What we CAN do
+- **Use the LDraw parts library** (~17K parts) freely, including commercially.
+  Licensed CC-BY 2.0; we attribute LDraw in our footer / about page.
+- **Generate `.ldr` files** as our output format. Open standard, anyone's tools
+  can open them (LeoCAD, Stud.io, Mecabricks, our own viewer).
+- **Generate BrickLink XML** for one-click wanted-list import. This is the
+  intended third-party integration path.
+- **Query the BrickLink API** for part pricing/availability, with caching
+  (max 5,000 calls/day per key). Reasonable commercial use is permitted.
+- **Charge users for our design tool**. We just can't charge for the
+  BrickLink-integration portion specifically (since BL offers that free).
+- **Reference real LEGO part shapes** (a 2x4 brick is functional, not
+  copyrightable per Lego v. Best-Lock 2014).
+
+### What we CANNOT do
+- **Bundle, fork, or programmatically depend on the Stud.io app.** Its
+  license is testing-only, not production. We don't include it as a
+  dependency. Users can independently open our `.ldr` files in Stud.io
+  for personal use — but that's their choice, not our integration.
+- **Generate `.io` files** (Stud.io's proprietary format). Skip entirely.
+- **Use LEGO Group's trademarks**. We cannot call our product "LEGO
+  compatible", "LEGO designs", or use the LEGO logo. Generic terms
+  ("brick", "plastic brick", "AFOL", "MOC") are fine.
+- **Generate models referencing licensed IP and marketing them as such.**
+  Users can prompt "Star Wars X-wing" — we'll generate a small spaceship,
+  but we cannot label it Star Wars, sell it as Star Wars, or use
+  trademarked names. Disney/Lucasfilm and LEGO Group both enforce hard.
+- **Sell BrickLink data itself** (parts list, member content). We can use
+  it inside our application but not resell.
+
+### Operational implications
+- Marketing language uses "brick" generically, never "LEGO".
+- IP filter on user prompts: detect mentions of trademarked names
+  ("Star Wars", "Marvel", "Disney", "Harry Potter", etc.) and either
+  rewrite to generic descriptors before generation, OR refuse with a
+  clear explanation. Recommendation: rewrite silently to a generic
+  description ("Star Wars X-wing" → "small fighter spaceship with
+  swept-back wings"). User gets a model that resembles what they
+  wanted; we don't expose them or us to IP liability.
+- A clear ToS that users own their generated designs but agree not to
+  market them using third-party IP.
+- Attribution footer: "Powered by the LDraw® library. LDraw™ is a
+  trademark of the LDraw Organization. Not affiliated with the LEGO
+  Group."
+
 ## Risks (real, ranked)
 
 ### High risk
@@ -303,8 +381,10 @@ to 3/month for free users.
 
 2. **Hallucinated parts.** Even with tool-calling, LLM may reference a
    part incorrectly ("the 1x4 hinge plate" when no such part exists).
-   *Mitigation*: every part lookup must succeed; failed lookups force
-   LLM to revise.
+   *Mitigation*: three-layer defense (see Stage 2): system-prompt
+   prohibition, structured-output handles only from tool-call results,
+   final validation sweep against the catalog. The LLM cannot insert a
+   non-existent part into the output.
 
 3. **Coordinate solver complexity.** Implementing a real LEGO-aware CAD
    layout engine from scratch is the hardest part of this. *Mitigation*:
