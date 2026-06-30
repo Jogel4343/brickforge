@@ -55,7 +55,23 @@ hf_cache = modal.Volume.from_name("brickforge-hf-cache", create_if_missing=True)
 # install from the LegoGPT repo's own pyproject.toml.
 image = (
     modal.Image.debian_slim(python_version="3.11")
-    .apt_install("git", "build-essential", "curl")
+    .apt_install(
+        "git",
+        "build-essential",
+        "curl",
+        # bpy (Blender Python module, used by LegoGPT for .png previews) needs
+        # a bunch of system libs that are normally shipped with a full desktop
+        # Debian install. debian-slim doesn't have them. Add the minimum set:
+        "libxrender1",       # libXrender.so.1 (the one that bit us)
+        "libxi6",            # X input ext
+        "libxxf86vm1",       # X video mode ext
+        "libxfixes3",        # X fixes ext
+        "libxkbcommon0",     # keyboard
+        "libsm6",            # session mgmt
+        "libgl1",            # OpenGL
+        "libegl1",           # EGL (Blender's GPU backend)
+        "libglu1-mesa",      # OpenGL utility
+    )
     .pip_install("uv")  # LegoGPT uses uv for its own deps
     .run_commands(
         # Clone LegoGPT into the image. Pin to main; bump commit hash here
