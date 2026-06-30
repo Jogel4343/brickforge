@@ -43,3 +43,9 @@ public/ldraw/parts/
 public/ldraw/p/
 data/ldraw_complete/
 *.ldr.large
+
+# Generation outputs from worker smoke tests
+generations/
+output.ldr
+output.png
+output.txt

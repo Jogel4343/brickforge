@@ -273,29 +273,49 @@ def http_generate(item: dict) -> dict:
 # Smoke test entrypoint
 # ---------------------------------------------------------------------------
 
+def _slugify(text: str) -> str:
+    """Turn a prompt into a safe filename slug."""
+    import re
+
+    s = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    return s[:40] or "untitled"
+
+
 @app.local_entrypoint()
-def smoke(prompt: str = "a small chair"):
+def smoke(prompt: str = "a small chair", name: str = ""):
     """Run a single LegoGPT inference and print the result summary.
+
+    Outputs are saved to ./generations/<slug>.ldr and ./generations/<slug>.png
+    so multiple test prompts don't overwrite each other. Use --name to override
+    the slug.
 
     Usage:
         python -m modal run worker/modal_app.py::smoke
         python -m modal run worker/modal_app.py::smoke --prompt "a small spaceship"
+        python -m modal run worker/modal_app.py::smoke --prompt "..." --name dog2
     """
-    print(f"Brickforge smoke test — prompt: {prompt!r}")
-    print("(first run will be slow: container build ~5min, model download ~30s)")
+    slug = name or _slugify(prompt)
+    out_dir = Path("generations")
+    out_dir.mkdir(exist_ok=True)
+
+    print(f"Brickforge smoke test — prompt: {prompt!r} — slug: {slug!r}")
     result = generate.remote(prompt=prompt)
     if "error" in result:
         print("FAILED:")
         print(json.dumps(result, indent=2))
         sys.exit(1)
 
-    print(f"\nSUCCESS — generated {result['brick_count']} bricks in {result['gpu_seconds']}s")
+    print(
+        f"\nSUCCESS — generated {result['brick_count']} bricks in "
+        f"{result['gpu_seconds']}s"
+    )
     if result.get("ldr_text"):
-        # Save .ldr locally so the user can drop it into the viewer.
-        Path("output.ldr").write_text(result["ldr_text"])
-        print("LDraw model saved to ./output.ldr")
+        ldr_path = out_dir / f"{slug}.ldr"
+        ldr_path.write_text(result["ldr_text"])
+        print(f"LDraw model saved to ./{ldr_path}")
     if result.get("preview_png_b64"):
         import base64
 
-        Path("output.png").write_bytes(base64.b64decode(result["preview_png_b64"]))
-        print("Preview PNG saved to ./output.png")
+        png_path = out_dir / f"{slug}.png"
+        png_path.write_bytes(base64.b64decode(result["preview_png_b64"]))
+        print(f"Preview PNG saved to ./{png_path}")
