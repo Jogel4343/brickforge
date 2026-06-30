@@ -72,13 +72,27 @@ image = (
         "libegl1",           # EGL (Blender's GPU backend)
         "libglu1-mesa",      # OpenGL utility
     )
-    .pip_install("uv")  # LegoGPT uses uv for its own deps
+    .pip_install("uv", "gdown")  # LegoGPT uses uv for its own deps; gdown for Google Drive
     .run_commands(
-        # Clone LegoGPT into the image. Pin to main; bump commit hash here
-        # once you've smoke-tested a specific version.
-        "git clone https://github.com/AvaLovelace1/LegoGPT.git /opt/legogpt",
+        # Clone LegoGPT WITH submodules (ImportLDraw lives in a submodule and
+        # the renderer fails without it).
+        "git clone --recurse-submodules https://github.com/AvaLovelace1/LegoGPT.git /opt/legogpt",
         # Install LegoGPT's deps via uv into a project-local venv at /opt/legogpt/.venv
         "cd /opt/legogpt && uv sync --frozen || uv sync",
+        # Download the background EXR file the renderer needs. It's on Google
+        # Drive so we use gdown (regular curl/wget just gets an HTML page).
+        "gdown 'https://drive.google.com/uc?id=1Yux0sEqWVpXGMT9Z5J094ISfvxhH-_5K' -O /opt/legogpt/ImportLDraw/loadldraw/background.exr",
+        # Download the LDraw parts library (~80MB compressed, ~250MB unpacked)
+        # into the home dir. LegoGPT's renderer looks for ~/ldraw by default,
+        # or honors LDRAW_LIBRARY_PATH. The package layout extracts to ~/ldraw.
+        "apt-get install -y unzip wget && "
+        "cd /root && wget -q https://library.ldraw.org/library/updates/complete.zip && "
+        "unzip -q complete.zip && rm complete.zip",
+    )
+    .env(
+        {
+            "LDRAW_LIBRARY_PATH": "/root/ldraw",
+        }
     )
     .pip_install(
         # Extra deps for our wrapper (FastAPI, etc.)
