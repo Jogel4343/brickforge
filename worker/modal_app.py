@@ -1,90 +1,232 @@
-"""Modal entrypoint for Brickforge generation.
+"""Brickforge GPU worker — LegoGPT inference on Modal.
 
-Exposes an authenticated HTTP endpoint that Next.js's /api/generate calls.
+This Modal app exposes an HTTP endpoint the Next.js app calls to turn a text
+prompt into a LEGO brick model. End-to-end pipeline (v1):
 
-This is a SCAFFOLD — wired up for completion in Week 4. The function signatures
-match the eventual production interface so the frontend can be developed against
-the stub today.
+    prompt
+      └── LegoGPT (CMU, fine-tuned Llama-3.2-1B-Instruct)
+            └── outputs brick list (LDraw format) + .png preview
+                  └── Gurobi stability check (built into LegoGPT)
+                        └── return {ldr_text, brick_count, gpu_seconds, ...}
+
+Deployment:
+
+    python -m modal deploy worker/modal_app.py
+
+Local smoke test:
+
+    python -m modal run worker/modal_app.py::smoke
+
+Secrets required (set up via the Modal dashboard or `python -m modal secret create`):
+
+    huggingface:  HF_TOKEN          # your hf_... token
+    gurobi:       GRB_LICENSE_FILE  # contents of your gurobi.lic (paste verbatim)
+
+Cost reality:
+    - First deploy builds a ~5 GB container image (~5-10 min, one-time).
+    - Each generation runs on an A10G (~$1.10/hr). A typical small (~50 brick)
+      model takes 60-120s = ~$0.02-$0.04 per generation including stability
+      retries.
+    - GPU sits idle billed at $0/hr; only pay for actual inference time.
 """
+
 from __future__ import annotations
+
+import json
 import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
 import modal
+
+# ---------------------------------------------------------------------------
+# App + image
+# ---------------------------------------------------------------------------
 
 app = modal.App("brickforge-worker")
 
-# Image: CUDA + LegoGPT deps. LegoGPT is pulled from GitHub at build time.
+# Persistent volume for HF model cache so we don't re-download Llama weights
+# every cold start (saves ~30s and bandwidth).
+hf_cache = modal.Volume.from_name("brickforge-hf-cache", create_if_missing=True)
+
+# We pin Python 3.11 (LegoGPT was tested on 3.10-3.12). PyTorch + LegoGPT
+# install from the LegoGPT repo's own pyproject.toml.
 image = (
     modal.Image.debian_slim(python_version="3.11")
-    .apt_install("git", "build-essential")
-    .pip_install(
-        "torch>=2.3",
-        "transformers>=4.43",
-        "accelerate>=0.31",
-        "trl>=0.9",
-        "numpy",
-        "pillow",
-        "networkx",
-        "trimesh",
-        "gurobipy",
-        "fastapi",
-        "pydantic>=2",
-    )
+    .apt_install("git", "build-essential", "curl")
+    .pip_install("uv")  # LegoGPT uses uv for its own deps
     .run_commands(
-        # Pin to a known good LegoGPT commit. Update after pre-flight smoke test.
+        # Clone LegoGPT into the image. Pin to main; bump commit hash here
+        # once you've smoke-tested a specific version.
         "git clone https://github.com/AvaLovelace1/LegoGPT.git /opt/legogpt",
+        # Install LegoGPT's deps via uv into a project-local venv at /opt/legogpt/.venv
+        "cd /opt/legogpt && uv sync --frozen || uv sync",
+    )
+    .pip_install(
+        # Extra deps for our wrapper (FastAPI, etc.)
+        "fastapi>=0.110",
+        "pydantic>=2.7",
+        "httpx>=0.27",
+    )
+    .env(
+        {
+            "HF_HOME": "/root/hf_cache",
+            "TRANSFORMERS_CACHE": "/root/hf_cache",
+            "HF_HUB_CACHE": "/root/hf_cache",
+        }
     )
 )
 
-GPU_TYPE = "A10G"  # ~$1.10/hr — good cost/perf for LegoGPT inference
+# ---------------------------------------------------------------------------
+# Generation function
+# ---------------------------------------------------------------------------
+
+GPU_TYPE = "A10G"  # ~$1.10/hr; good cost/perf for LegoGPT (small Llama backbone)
 
 
 @app.function(
     image=image,
     gpu=GPU_TYPE,
     timeout=600,
+    volumes={"/root/hf_cache": hf_cache},
     secrets=[
-        modal.Secret.from_name("hf-token"),       # Hugging Face token for gated Llama weights
-        modal.Secret.from_name("gurobi-license"), # Gurobi WLS / academic license
+        modal.Secret.from_name("huggingface"),  # exposes HF_TOKEN env var
+        modal.Secret.from_name("gurobi"),       # exposes GRB_LICENSE_FILE env var
     ],
 )
-def generate(prompt: str, grid_size: int = 20, seed: int | None = None) -> dict:
-    """Run LegoGPT for a single (sub)volume.
+def generate(prompt: str, max_bricks: int = 200, seed: int | None = None) -> dict:
+    """Run LegoGPT for a single prompt. Returns {ldr_text, brick_count, ...}."""
+    start = time.time()
 
-    Returns:
-      {
-        "bricks": [{"ldraw_id": "3001", "color": 4, "x": 0, "y": 0, "z": 0, "rot": 0}, ...],
-        "ldr": "<ldraw text>",
-        "preview_png_b64": "<base64>",
-        "stats": {"total_bricks": N, "rejections": M, "regenerations": K, "gpu_seconds": S}
-      }
-    """
-    raise NotImplementedError("Wire up in Week 4 — see worker/legogpt_runner.py")
+    # Set up Gurobi license. LegoGPT expects it at one of:
+    #   $GRB_LICENSE_FILE path, or ~/gurobi.lic, or /opt/gurobi/gurobi.lic
+    grb = os.environ.get("GRB_LICENSE_FILE")
+    if grb and not Path(grb).exists() and grb.startswith("# Gurobi"):
+        # If the secret was uploaded as the file contents rather than a path,
+        # write it out to a real file and update the env var.
+        lic_path = Path("/root/gurobi.lic")
+        lic_path.write_text(grb)
+        os.environ["GRB_LICENSE_FILE"] = str(lic_path)
+
+    # LegoGPT login to HF (for gated Llama weights). Token is in HF_TOKEN.
+    hf_token = os.environ.get("HF_TOKEN")
+    if not hf_token:
+        return {"error": "HF_TOKEN secret not set"}
+    # huggingface_hub auto-reads HF_TOKEN; nothing more to do.
+
+    # Invoke LegoGPT's inference CLI. LegoGPT v1 exposes `uv run infer` which
+    # reads a prompt from stdin and writes output.ldr, output.txt, output.png
+    # into the cwd.
+    workdir = Path("/tmp/brickforge-run")
+    workdir.mkdir(parents=True, exist_ok=True)
+
+    cmd = ["uv", "run", "infer"]
+    proc = subprocess.run(
+        cmd,
+        cwd="/opt/legogpt",
+        input=prompt + "\n",
+        text=True,
+        capture_output=True,
+        timeout=540,
+        env={**os.environ},
+    )
+
+    if proc.returncode != 0:
+        return {
+            "error": f"LegoGPT exited {proc.returncode}",
+            "stdout": proc.stdout[-2000:],
+            "stderr": proc.stderr[-4000:],
+            "gpu_seconds": round(time.time() - start, 2),
+        }
+
+    # Collect outputs from LegoGPT's working directory.
+    out_dir = Path("/opt/legogpt")
+    ldr_path = out_dir / "output.ldr"
+    txt_path = out_dir / "output.txt"
+    png_path = out_dir / "output.png"
+
+    ldr_text = ldr_path.read_text() if ldr_path.exists() else None
+    txt_text = txt_path.read_text() if txt_path.exists() else None
+    png_bytes = png_path.read_bytes() if png_path.exists() else None
+
+    # Parse a brick count from the .ldr (lines starting with "1 " are part references).
+    brick_count = (
+        sum(1 for line in (ldr_text or "").splitlines() if line.startswith("1 "))
+        if ldr_text else 0
+    )
+
+    return {
+        "ldr_text": ldr_text,
+        "brick_list_txt": txt_text,
+        "preview_png_b64": _b64(png_bytes) if png_bytes else None,
+        "brick_count": brick_count,
+        "gpu_seconds": round(time.time() - start, 2),
+        "stdout_tail": proc.stdout[-2000:],
+    }
 
 
-@app.function(image=image, gpu=GPU_TYPE, timeout=1800)
-def generate_chunked(prompt: str, target_grid: int = 40) -> dict:
-    """Chunked / "subagent" generation for builds larger than LegoGPT's native cap.
+def _b64(b: bytes) -> str:
+    import base64
 
-    Splits the target volume into 20-cube subvolumes, generates each in parallel,
-    then stitches via chunked_planner.stitch.
-
-    Returns the same shape as `generate` but for the full assembled model.
-    """
-    raise NotImplementedError("Wire up in Week 5/6 — see ARCHITECTURE.md for the design.")
+    return base64.b64encode(b).decode("ascii")
 
 
-@app.function(image=image, cpu=2.0, memory=2048, timeout=120)
+# ---------------------------------------------------------------------------
+# HTTP endpoint called by Next.js /api/generate
+# ---------------------------------------------------------------------------
+
+@app.function(
+    image=image,
+    cpu=2.0,
+    memory=2048,
+    timeout=600,
+    secrets=[modal.Secret.from_name("brickforge-worker-key")],  # optional shared secret
+)
 @modal.web_endpoint(method="POST", label="brickforge-generate")
 def http_generate(item: dict) -> dict:
-    """HTTP entrypoint called by Next.js /api/generate.
-
-    Auth: simple shared secret in `x-brickforge-key` header, validated upstream
-    by Modal's request handling; replace with signed JWT before public launch.
-    """
+    """POST {prompt: string, grid?: number, chunked?: boolean}."""
+    # Auth (simple shared-secret header; tighten before public launch).
+    # Modal injects the secret value as an env var; the client sends the same
+    # value in 'x-brickforge-key'. For v1 we trust Modal's URL secrecy.
     prompt = item.get("prompt", "")
-    if not prompt:
-        return {"error": "prompt required"}
-    chunked = bool(item.get("chunked", False))
-    # Dispatch — these are stubs today; the wiring is here ready for Week 4.
-    fn = generate_chunked if chunked else generate
-    return fn.remote(prompt=prompt, **({"target_grid": item.get("grid", 40)} if chunked else {"grid_size": item.get("grid", 20)}))
+    if not prompt or len(prompt) < 3:
+        return {"error": "prompt too short"}
+    if len(prompt) > 600:
+        return {"error": "prompt too long"}
+
+    result = generate.remote(prompt=prompt)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Smoke test entrypoint
+# ---------------------------------------------------------------------------
+
+@app.local_entrypoint()
+def smoke(prompt: str = "a small chair"):
+    """Run a single LegoGPT inference and print the result summary.
+
+    Usage:
+        python -m modal run worker/modal_app.py::smoke
+        python -m modal run worker/modal_app.py::smoke --prompt "a small spaceship"
+    """
+    print(f"Brickforge smoke test — prompt: {prompt!r}")
+    print("(first run will be slow: container build ~5min, model download ~30s)")
+    result = generate.remote(prompt=prompt)
+    if "error" in result:
+        print("FAILED:")
+        print(json.dumps(result, indent=2))
+        sys.exit(1)
+
+    print(f"\nSUCCESS — generated {result['brick_count']} bricks in {result['gpu_seconds']}s")
+    if result.get("ldr_text"):
+        # Save .ldr locally so the user can drop it into the viewer.
+        Path("output.ldr").write_text(result["ldr_text"])
+        print("LDraw model saved to ./output.ldr")
+    if result.get("preview_png_b64"):
+        import base64
+
+        Path("output.png").write_bytes(base64.b64decode(result["preview_png_b64"]))
+        print("Preview PNG saved to ./output.png")
