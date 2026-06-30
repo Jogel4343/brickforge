@@ -58,6 +58,12 @@ human-designer refinement on top.
 - AR view
 - Real-time collaborative design
 - Auto-generated PDF instruction booklets (we'll output a viewer URL + a CSV parts list for v1; full PDF in v1.5)
+- **AI image generation** (DALL-E, FLUX, etc.). Deliberately excluded:
+  Claude has strong enough world knowledge that text-only planning works
+  for v1. May be added later if vague prompts under-perform.
+- **Photo-to-CAD reconstruction**. We use photo-to-brief (Stage 0)
+  instead. Photo-to-CAD is a hard research problem; sidestepped by
+  design.
 
 ---
 
@@ -67,13 +73,24 @@ human-designer refinement on top.
 ┌────────────────────────────────────────────────────────────────────┐
 │ USER INPUT                                                         │
 │  • Text prompt: "small fighter spaceship with swept-back wings"    │
-│  • OR uploaded image                                               │
+│  • OR uploaded image (photo of their dog/house/car)                │
 └────────────────────────┬───────────────────────────────────────────┘
                          │
         ┌────────────────▼────────────────┐
+        │ STAGE 0: INPUT NORMALIZATION    │
+        │ (only runs if input is a photo) │
+        │  Claude (multimodal vision):    │
+        │    image → text brief           │
+        │  Photo-to-BRIEF, NOT to-CAD.    │
+        │  We never reconstruct geometry  │
+        │  from a 2D image.               │
+        └────────────────┬────────────────┘
+                         │
+                   text brief
+                         │
+        ┌────────────────▼────────────────┐
         │ STAGE 1: SCENE UNDERSTANDING    │
-        │  GPT-5 Vision (if image)        │
-        │  OR GPT-5 text comprehension    │
+        │  Claude text comprehension      │
         │  Output: structured scene desc  │
         │    { primary_object, scale,     │
         │      key_features, style,       │
@@ -134,12 +151,53 @@ human-designer refinement on top.
 
 ## Stage-by-stage details
 
-### Stage 1: Scene Understanding
+### Stage 0: Input Normalization (photo path only)
 
-**Goal**: convert vague user input into structured scene description.
+**Goal**: turn an uploaded photo into a text brief. **Photo-to-brief,
+NOT photo-to-CAD.**
+
+This is a deliberate design choice. Photo-to-CAD (reconstructing 3D
+geometry from a single 2D image) is a hard research problem and
+state-of-the-art tools (TRELLIS, Tripo) routinely fail on anything
+organic or asymmetric. We sidestep entirely.
+
+Instead, Claude (multimodal) looks at the photo and produces a *text
+brief* describing the subject — the way a designer would describe it to
+a colleague. That brief feeds into Stage 1 unchanged.
+
+**What this gets us**:
+- No new failure mode (brick generation is identical to text-only path)
+- Quality matches text path (Claude's interpretation is often better
+  than the user's own attempt at describing their pet)
+- "Magical" UX (upload photo, get personalized model)
+- Strong demo / share value (TikTok-friendly)
+
+**What we accept**:
+- Output reflects what Claude *thinks* the photo shows, not
+  pixel-accurate reconstruction. Same trade every stylized-portrait
+  product makes.
 
 **Implementation**:
-- Single LLM call (GPT-5 or Claude Sonnet, vision-enabled)
+- Single Claude multimodal call with the image plus a prompt:
+  "Describe the subject of this photo as a brief for a LEGO designer.
+  Focus on shape, posture, distinguishing features, dominant colors.
+  Keep under 200 words."
+- Output: plain text brief, no schema
+- Passed through to Stage 1 as if it were a user-typed prompt
+
+**Cost**: ~$0.05–$0.10 per call.
+
+**Skipped entirely if input is text-only.**
+
+---
+
+### Stage 1: Scene Understanding
+
+**Goal**: convert the (text or photo-derived) input into structured
+scene description.
+
+**Implementation**:
+- Single LLM call (Claude Sonnet 4 or later)
 - System prompt establishes BL expert persona + LDraw vocabulary awareness
 - Output schema (validated with Pydantic):
   ```python
