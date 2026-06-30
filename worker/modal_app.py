@@ -115,6 +115,11 @@ image = (
 
 GPU_TYPE = "A10G"  # ~$1.10/hr; good cost/perf for LegoGPT (small Llama backbone)
 
+# Mount the worker/ directory inside the container so the catalog + tools
+# modules are importable from the @app.function bodies. Without this, our
+# local Python files don't ship to the Modal container.
+image = image.add_local_python_source("worker")
+
 
 @app.function(
     image=image,
