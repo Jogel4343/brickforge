@@ -144,11 +144,14 @@ export default function LdrawViewer({
     // LEGO actually look like LEGO.
     (loader as any).smoothNormals = false;
 
-    // Default sample. The gkjohnson mirror packs the same car.mpd Three.js uses
-    // in its own examples — small enough to load fast but with real bricks.
+    // Default sample: an official LEGO set (Imperial Star Destroyer UCS, ~3,100
+    // pieces) hosted on the gkjohnson mirror. Real LEGO bricks, real complexity,
+    // perfect for confirming per-brick rendering works on a non-trivial model.
+    // First load is slow (parts stream from the CDN); subsequent loads are
+    // cached by the browser.
     const url =
       modelUrl ??
-      "https://raw.githubusercontent.com/gkjohnson/ldraw-parts-library/master/models/car.ldr_Packed.mpd";
+      "https://raw.githubusercontent.com/gkjohnson/ldraw-parts-library/master/complete/ldraw/10030-1%20-%20Imperial%20Star%20Destroyer%20-%20UCS.mpd";
 
     loader.load(
       url,
