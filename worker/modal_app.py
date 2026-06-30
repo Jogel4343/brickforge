@@ -143,10 +143,33 @@ def generate(prompt: str, max_bricks: int = 200, seed: int | None = None) -> dic
         or grb.lstrip().startswith("#")  # comment header
     )
     if grb and (looks_like_file_contents or not Path(grb).exists()):
+        # Modal's secret UI sometimes collapses pasted newlines into spaces.
+        # Restore line structure by splitting on Gurobi's known field markers.
+        # Comments start with '#'; fields are KEY=VALUE; restore newlines before
+        # any of those tokens.
+        text = grb
+        if "\n" not in text:
+            import re
+            # Insert a newline before each '#' (comment) or before each
+            # known KEY= field marker. Then collapse runs of whitespace.
+            field_markers = [
+                "LICENSEID=", "TYPE=", "VERSION=", "HOSTNAME=", "HOSTID=",
+                "USERNAME=", "EXPIRATION=", "KEY=", "SIGNATURE=",
+                "APPNAME=", "WLSACCESSID=", "WLSSECRET=", "LICENSEKEY=",
+            ]
+            # Wrap each marker with newlines so they end up at start of line.
+            for m in field_markers:
+                text = text.replace(f" {m}", f"\n{m}")
+            # Wrap '#' comment starts too (only when '#' is preceded by space)
+            text = re.sub(r"\s+#", "\n#", text)
+            text = text.strip() + "\n"
         lic_path = Path("/root/gurobi.lic")
-        lic_path.write_text(grb)
+        lic_path.write_text(text)
         os.environ["GRB_LICENSE_FILE"] = str(lic_path)
-        print(f"[brickforge] Wrote Gurobi license to {lic_path} ({len(grb)} chars)")
+        print(
+            f"[brickforge] Wrote Gurobi license to {lic_path} "
+            f"({len(text)} chars, {text.count(chr(10))} lines)"
+        )
 
     # LegoGPT login to HF (for gated Llama weights). Token is in HF_TOKEN.
     hf_token = os.environ.get("HF_TOKEN")
