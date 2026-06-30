@@ -5,25 +5,25 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { LDrawLoader } from "three/examples/jsm/loaders/LDrawLoader.js";
 
-// CDN-hosted complete LDraw parts library (gkjohnson mirror — the same one
-// Three.js's official examples use). Lets the viewer render any LDraw model
-// with zero local install. We'll move to a self-hosted mirror (Supabase Storage
-// or Vercel static assets) before public launch.
+// CDN-hosted complete LDraw parts library (gkjohnson mirror — same one used by
+// Three.js's official examples). Lets the viewer render any LDraw model with
+// zero local install. We'll move to a self-hosted mirror (Supabase Storage or
+// Vercel static assets) before public launch.
 const LDRAW_CDN =
   "https://raw.githubusercontent.com/gkjohnson/ldraw-parts-library/master/complete/ldraw/";
 
 /**
  * LdrawViewer — Three.js viewer for LDraw (.ldr / .mpd) files.
  *
- * Renders each brick as its own addressable object (NO merging). This is
- * required for explode-view, step isolation, click-to-inspect, and the
+ * Renders each brick as its own addressable object (NO mesh merging) so we
+ * can drive per-brick UX: explode, step isolation, click-to-inspect, and the
  * generated step-by-step instructions in later phases.
  *
  * Features:
- *   - OrbitControls (orbit / pan / zoom, touch friendly)
+ *   - OrbitControls (orbit / pan / zoom, touch-friendly)
  *   - Preset camera angles (front / side / top / iso / back)
  *   - Background toggle (dark / studio / light)
- *   - Explode-view slider — pushes EACH BRICK outward from model center
+ *   - Explode-view slider (beta — radial distance-scaled separation)
  *   - Step-through slider (when the LDraw file has authored construction steps)
  *   - Screenshot capture
  *   - Brick count display
@@ -44,14 +44,14 @@ export default function LdrawViewer({
     camera?: THREE.PerspectiveCamera;
     controls?: OrbitControls;
     model?: THREE.Group;
-    bricks?: THREE.Object3D[];      // individual brick nodes for per-brick ops
+    bricks?: THREE.Object3D[];
     steps?: THREE.Group[];
     bbox?: THREE.Box3;
     raf?: number;
   }>({});
 
   const [bg, setBg] = useState<"dark" | "studio" | "light">("dark");
-  const [explode, setExplode] = useState(0); // 0..1
+  const [explode, setExplode] = useState(0);
   const [stepIndex, setStepIndex] = useState<number | null>(null);
   const [totalSteps, setTotalSteps] = useState(0);
   const [brickCount, setBrickCount] = useState(0);
@@ -83,7 +83,6 @@ export default function LdrawViewer({
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
 
-    // Soft 3-light setup so studs read well from any angle.
     const ambient = new THREE.AmbientLight(0xffffff, 0.6);
     const key = new THREE.DirectionalLight(0xffffff, 0.9);
     key.position.set(200, 400, 300);
@@ -140,14 +139,8 @@ export default function LdrawViewer({
 
     const loader = new LDrawLoader();
     loader.setPartsLibraryPath(partsLibraryPath);
-    // smoothNormals = false preserves the visible plate/stud edges that make
-    // LEGO actually look like LEGO.
     (loader as any).smoothNormals = false;
 
-    // Default sample: the car.mpd file Three.js uses in its own LDrawLoader
-    // example. Verified to be 200 OK and to render correctly. Small enough to
-    // load fast (~30 bricks) but real LEGO. The parts library itself is served
-    // from the gkjohnson CDN (verified 200 on parts/3001.dat etc).
     const url =
       modelUrl ??
       "https://raw.githubusercontent.com/mrdoob/three.js/master/examples/models/ldraw/officialLibrary/models/car.ldr_Packed.mpd";
@@ -155,37 +148,63 @@ export default function LdrawViewer({
     loader.load(
       url,
       (group) => {
-        // Remove any prior model.
         if (stateRef.current.model) {
           scene.remove(stateRef.current.model);
         }
 
-        // CRITICAL: do NOT merge meshes. Each brick must remain its own
-        // addressable object so we can drive explode, step isolation, hover,
-        // and click. (Earlier version called LDrawUtils.mergeObject which
-        // collapsed all bricks of the same color into a single mesh — that's
-        // why the model moved as a single rigid blob.)
+        // CRITICAL FIX 1: strip wireframe edges. LDrawLoader emits LineSegments
+        // for the iconic LEGO black outlines on every part. These were causing
+        // the "ghost wireframe" bricks the user saw — line geometry stays put
+        // when we reposition brick meshes (lines are siblings of mesh groups,
+        // not part of the bricks themselves). Removing them cleans the visual
+        // and also speeds up rendering.
+        const toRemove: THREE.Object3D[] = [];
+        group.traverse((node) => {
+          if ((node as any).isLineSegments || (node as any).isLine) {
+            toRemove.push(node);
+          }
+        });
+        toRemove.forEach((n) => n.parent?.remove(n));
 
-        // LDraw uses Y-down; flip to Y-up so our camera/controls make sense.
+        // LDraw uses Y-down; flip to Y-up so camera/controls make sense.
         group.rotation.x = Math.PI;
 
         scene.add(group);
         stateRef.current.model = group;
 
-        // Identify per-brick nodes. LDrawLoader emits a Group per .dat reference
-        // in the source file; bricks are the leaf groups whose children are
-        // meshes (no further nested groups).
+        // CRITICAL FIX 2: smarter brick detection. Previous heuristic was
+        // "leaf group whose children are all meshes" — but with edge geometry
+        // (now stripped) some bricks didn't match. Three layers of robustness:
+        //   (a) Group has LDraw brick metadata (partType / colorCode)
+        //   (b) Group whose direct children are all meshes
+        //   (c) Each mesh as its own brick (last-resort fallback)
         const bricks: THREE.Object3D[] = [];
+
+        // Layer (a)
         group.traverse((node) => {
-          const isLeafGroup =
-            (node as any).isGroup &&
-            node.children.length > 0 &&
-            node.children.every((c) => (c as any).isMesh);
-          if (isLeafGroup) bricks.push(node);
+          if (!(node as any).isGroup) return;
+          const ud = (node as any).userData || {};
+          const hasMetadata =
+            ud.partType !== undefined ||
+            ud.colorCode !== undefined ||
+            ud.constructionStep !== undefined;
+          if (hasMetadata && node.children.length > 0) {
+            bricks.push(node);
+          }
         });
 
-        // Fallback for pre-merged MPDs with no brick-level groups: treat each
-        // mesh as its own brick.
+        // Layer (b)
+        if (bricks.length === 0) {
+          group.traverse((node) => {
+            if (!(node as any).isGroup) return;
+            const leaf =
+              node.children.length > 0 &&
+              node.children.every((c) => (c as any).isMesh);
+            if (leaf) bricks.push(node);
+          });
+        }
+
+        // Layer (c)
         if (bricks.length === 0) {
           group.traverse((node) => {
             if ((node as any).isMesh) bricks.push(node);
@@ -195,7 +214,7 @@ export default function LdrawViewer({
         stateRef.current.bricks = bricks;
         setBrickCount(bricks.length);
 
-        // Compute bbox + cache per-brick reference data for explode.
+        // Cache per-brick origin + offset-from-center for the explode pass.
         const bbox = new THREE.Box3().setFromObject(group);
         stateRef.current.bbox = bbox;
         const center = new THREE.Vector3();
@@ -207,7 +226,7 @@ export default function LdrawViewer({
           b.userData.worldCenterOffset = worldPos.clone().sub(center);
         });
 
-        // Build step list (LDraw files may group bricks into authored steps).
+        // Build authored-step list (LDraw files can group bricks into steps).
         const steps: THREE.Group[] = [];
         group.traverse((child) => {
           if (
@@ -220,7 +239,7 @@ export default function LdrawViewer({
         stateRef.current.steps = steps;
         setTotalSteps(steps.length);
 
-        // Fit camera to model bounds.
+        // Fit camera to model.
         const size = new THREE.Vector3();
         bbox.getSize(size);
         const maxDim = Math.max(size.x, size.y, size.z);
@@ -240,69 +259,43 @@ export default function LdrawViewer({
       (err) => {
         console.error("LDraw load failed", err);
         setLoadError(
-          "Couldn't load this model. Check the browser console for the underlying error — most often a network issue fetching part .dat files from the LDraw mirror."
+          "Couldn't load this model. Check the browser console — most likely a network issue fetching part .dat files from the LDraw mirror."
         );
         setLoading(false);
       }
     );
   }, [modelUrl, partsLibraryPath]);
 
-  // -------- Explode view (per brick) --------
-  // Hybrid explode: combine a HORIZONTAL push outward from the model's vertical
-  // axis (so bricks separate sideways like a flower opening) with a VERTICAL
-  // lift proportional to how high the brick sits in the build (so upper layers
-  // float up like a multi-story building's floors separating). This avoids:
-  //   - Bricks at the exact center never moving (pure radial-from-center failed)
-  //   - All bricks moving radially through each other (radial-only overlap)
-  // It also mimics how real LEGO instruction manuals show exploded views.
+  // -------- Explode view (radial, distance-scaled) --------
+  // Standard Three.js community pattern (DevDojo / r3f tutorials use the same
+  // approach). Each brick moves along its center→position vector, scaled by
+  // distance from center. Closer bricks displace less; farther bricks fly free.
+  //
+  // Note: this is intentionally a "beta" / demo feature. Real LEGO products
+  // use step-by-step build progression (which Week 6 wires up) rather than
+  // radial explode. We keep the slider for the demo factor and stop polishing
+  // it here — there's a clear ceiling for radial explode quality on dense
+  // brick clouds, and chasing it costs project momentum.
   useEffect(() => {
     const bricks = stateRef.current.bricks;
     const bbox = stateRef.current.bbox;
     if (!bricks || bricks.length === 0 || !bbox) return;
 
-    const size = new THREE.Vector3();
-    bbox.getSize(size);
-    const center = new THREE.Vector3();
-    bbox.getCenter(center);
-    const maxDim = Math.max(size.x, size.y, size.z);
-    const heightRange = Math.max(size.y, 1);
-
-    // Strength tuned so 100% genuinely separates a 60-brick model.
-    const horizontalStrength = explode * maxDim * 1.2;
-    const verticalStrength = explode * maxDim * 1.5;
+    const factor = explode * 1.5;
 
     bricks.forEach((b) => {
       const orig: THREE.Vector3 | undefined = b.userData.originalPosition;
       const offsetFromCenter: THREE.Vector3 | undefined = b.userData.worldCenterOffset;
       if (!orig || !offsetFromCenter) return;
 
-      // 1) Horizontal push: project the brick's offset-from-center onto the
-      //    XZ plane and normalize. Inner bricks barely move horizontally,
-      //    outer bricks fly outward.
-      const horiz = new THREE.Vector3(offsetFromCenter.x, 0, offsetFromCenter.z);
-      if (horiz.lengthSq() > 1e-6) {
-        horiz.normalize().multiplyScalar(horizontalStrength);
-      } else {
-        // Brick directly on the central vertical axis — give it a tiny nudge
-        // in a stable direction so it doesn't stay stuck inside its neighbors.
-        horiz.set(0.001 * horizontalStrength, 0, 0);
+      const dist = offsetFromCenter.length();
+      if (dist < 1e-6) {
+        b.position.copy(orig);
+        return;
       }
-
-      // 2) Vertical lift: bricks higher up in the build lift further. Bricks
-      //    at the bottom barely move; the top floats free. (Note: we already
-      //    rotated the model 180° around X to flip LDraw's Y-down, so the
-      //    brick's Y in *world* space is what we want here.)
-      const worldPos = new THREE.Vector3();
-      b.getWorldPosition(worldPos);
-      const heightAboveBottom = worldPos.y - bbox.min.y;
-      const normalizedHeight = heightAboveBottom / heightRange; // 0..1
-      const lift = normalizedHeight * verticalStrength;
-
-      // Apply both deltas. Because of the X-rotation, +Y in world = -Y in
-      // model-local. Apply lift in local -Y.
-      b.position
-        .copy(orig)
-        .add(new THREE.Vector3(horiz.x, -lift, horiz.z));
+      const dir = offsetFromCenter.clone().normalize().multiplyScalar(dist * factor);
+      // Account for the model's 180°-X rotation when applying world delta.
+      b.position.copy(orig).add(new THREE.Vector3(dir.x, -dir.y, dir.z));
     });
   }, [explode]);
 
@@ -353,7 +346,6 @@ export default function LdrawViewer({
     <div className={`relative w-full h-full ${className}`}>
       <div ref={containerRef} className="absolute inset-0" />
 
-      {/* Top-left: status */}
       {loading && (
         <div className="absolute top-3 left-3 rounded-md bg-neutral-900/80 px-3 py-1.5 text-sm">
           Loading model… (first load fetches parts from CDN — give it a few seconds)
@@ -370,7 +362,6 @@ export default function LdrawViewer({
         </div>
       )}
 
-      {/* Top-right: viewing controls */}
       <div className="absolute top-3 right-3 flex flex-col gap-2 items-end">
         <div className="flex gap-1 bg-neutral-900/80 rounded-md p-1">
           {(["front", "side", "top", "iso", "back"] as const).map((v) => (
@@ -404,10 +395,11 @@ export default function LdrawViewer({
         </button>
       </div>
 
-      {/* Bottom: explode + step */}
       <div className="absolute bottom-3 left-3 right-3 flex flex-col gap-2">
         <div className="flex items-center gap-3 bg-neutral-900/80 rounded-md px-3 py-2 text-xs">
-          <span className="w-16">Explode</span>
+          <span className="w-24">
+            Explode <span className="text-neutral-500">(beta)</span>
+          </span>
           <input
             type="range"
             min={0}
@@ -421,7 +413,7 @@ export default function LdrawViewer({
         </div>
         {totalSteps > 0 && (
           <div className="flex items-center gap-3 bg-neutral-900/80 rounded-md px-3 py-2 text-xs">
-            <span className="w-16">Step</span>
+            <span className="w-24">Step</span>
             <input
               type="range"
               min={0}

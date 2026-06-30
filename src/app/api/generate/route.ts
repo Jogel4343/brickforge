@@ -1,38 +1,73 @@
 import { NextResponse } from "next/server";
+import { createTextTo3DTask } from "@/lib/meshy";
 
 /**
  * POST /api/generate
  *
- * Stub for the generation pipeline. In production this will:
- *   1. Validate prompt + auth
- *   2. Insert a row in `generations` (Supabase) with status=queued
- *   3. Call the Modal worker (WORKER_URL) which runs LegoGPT (+ chunked stitching
- *      for large requests) and returns brick list + .ldr + .png
- *   4. Store the .ldr + render in Supabase Storage
- *   5. Compute parts list, map to BrickLink IDs, attach live prices
- *   6. Return design ID for the client to poll/redirect
+ * Stage 1 of the LEGO generation pipeline.
  *
- * For now: validates the request shape and returns a placeholder so the UI
- * can be developed in parallel with the worker.
+ * Today (Week 2): kick off a Meshy text-to-3D job. Returns the Meshy task id
+ *   so the client can poll /api/generate/[id] for progress.
+ *
+ * Soon (Week 4): when Meshy SUCCEEDED, hand the mesh off to the Modal worker
+ *   running LegoGPT for the brick decomposition + step planning + parts list.
+ *
+ * For now this route lets us verify Meshy works end-to-end. A successful call
+ * proves: prompt → 3D mesh URL, which is the input we'll feed into LegoGPT.
  */
 export async function POST(req: Request) {
   try {
-    const { prompt } = (await req.json()) as { prompt?: string };
+    const { prompt, mode } = (await req.json()) as {
+      prompt?: string;
+      mode?: "preview" | "refine";
+    };
     if (!prompt || typeof prompt !== "string" || prompt.length < 3) {
-      return NextResponse.json({ error: "Provide a prompt of at least 3 characters." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Provide a prompt of at least 3 characters." },
+        { status: 400 }
+      );
     }
-    if (prompt.length > 1000) {
-      return NextResponse.json({ error: "Prompt too long (max 1000 chars)." }, { status: 400 });
+    if (prompt.length > 600) {
+      return NextResponse.json(
+        { error: "Prompt too long (max 600 chars)." },
+        { status: 400 }
+      );
     }
 
-    // TODO: replace with real worker call. Wired up in Week 4.
-    return NextResponse.json({
-      status: "stub",
-      message:
-        "Worker not yet wired. This endpoint will call the Modal LegoGPT worker. See worker/ for the Python pipeline scaffold.",
-      received: { prompt },
+    if (!process.env.MESHY_API_KEY) {
+      return NextResponse.json(
+        {
+          status: "stub",
+          message:
+            "MESHY_API_KEY not configured. Set it in .env.local (https://www.meshy.ai/) and restart `npm run dev`.",
+          received: { prompt, mode: mode ?? "preview" },
+        },
+        { status: 200 }
+      );
+    }
+
+    const taskId = await createTextTo3DTask({
+      prompt,
+      mode: mode ?? "preview",
+      // Negative prompt steers Meshy away from outputs that won't voxelize well.
+      negativePrompt:
+        "complex curves, organic flowing shapes, fragile thin tendrils, ultra-fine detail",
+      artStyle: "realistic",
     });
-  } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+
+    return NextResponse.json({
+      status: "queued",
+      taskId,
+      message:
+        "Meshy text-to-3D job submitted. Poll /api/generate/" +
+        taskId +
+        " for status. Typically completes in 30-90 seconds.",
+    });
+  } catch (err: any) {
+    console.error("/api/generate error", err);
+    return NextResponse.json(
+      { error: err?.message ?? String(err) },
+      { status: 500 }
+    );
   }
 }
