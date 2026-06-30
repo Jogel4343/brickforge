@@ -4,26 +4,33 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { LDrawLoader } from "three/examples/jsm/loaders/LDrawLoader.js";
-import { LDrawUtils } from "three/examples/jsm/utils/LDrawUtils.js";
+
+// CDN-hosted complete LDraw parts library (gkjohnson mirror — the same one
+// Three.js's official examples use). Lets the viewer render any LDraw model
+// with zero local install. We'll move to a self-hosted mirror (Supabase Storage
+// or Vercel static assets) before public launch.
+const LDRAW_CDN =
+  "https://raw.githubusercontent.com/gkjohnson/ldraw-parts-library/master/complete/ldraw/";
 
 /**
- * LdrawViewer — drop-in Three.js viewer for LDraw (.ldr / .mpd) files.
+ * LdrawViewer — Three.js viewer for LDraw (.ldr / .mpd) files.
  *
- * Built on Three.js's native LDrawLoader so we get the full LDraw parts library
- * support for free (no custom parser). Includes OrbitControls (orbit/pan/zoom),
- * preset camera angles, an explode-view slider, screenshot capture, background
- * toggle, and step-through controls.
+ * Renders each brick as its own addressable object (NO merging). This is
+ * required for explode-view, step isolation, click-to-inspect, and the
+ * generated step-by-step instructions in later phases.
  *
- * Props:
- *  - modelUrl: a publicly accessible URL to a .ldr/.mpd file. Defaults to the
- *    built-in Three.js LDraw sample so the viewer is demoable with zero setup.
- *  - partsLibraryPath: where the LDraw `parts/` and `p/` directories live.
- *    Must be relative to /public. Defaults to `/ldraw/` — drop the LDraw
- *    library there to enable rendering of arbitrary models.
+ * Features:
+ *   - OrbitControls (orbit / pan / zoom, touch friendly)
+ *   - Preset camera angles (front / side / top / iso / back)
+ *   - Background toggle (dark / studio / light)
+ *   - Explode-view slider — pushes EACH BRICK outward from model center
+ *   - Step-through slider (when the LDraw file has authored construction steps)
+ *   - Screenshot capture
+ *   - Brick count display
  */
 export default function LdrawViewer({
   modelUrl,
-  partsLibraryPath = "/ldraw/",
+  partsLibraryPath = LDRAW_CDN,
   className = "",
 }: {
   modelUrl?: string;
@@ -37,6 +44,7 @@ export default function LdrawViewer({
     camera?: THREE.PerspectiveCamera;
     controls?: OrbitControls;
     model?: THREE.Group;
+    bricks?: THREE.Object3D[];      // individual brick nodes for per-brick ops
     steps?: THREE.Group[];
     bbox?: THREE.Box3;
     raf?: number;
@@ -46,6 +54,7 @@ export default function LdrawViewer({
   const [explode, setExplode] = useState(0); // 0..1
   const [stepIndex, setStepIndex] = useState<number | null>(null);
   const [totalSteps, setTotalSteps] = useState(0);
+  const [brickCount, setBrickCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -125,16 +134,21 @@ export default function LdrawViewer({
 
     setLoading(true);
     setLoadError(null);
+    setBrickCount(0);
+    setTotalSteps(0);
+    setStepIndex(null);
 
     const loader = new LDrawLoader();
-    // partsLibraryPath should point at the directory containing the LDraw `parts/` and `p/` folders.
-    // Three.js looks them up relative to this path.
     loader.setPartsLibraryPath(partsLibraryPath);
+    // smoothNormals = false preserves the visible plate/stud edges that make
+    // LEGO actually look like LEGO.
+    (loader as any).smoothNormals = false;
 
-    // Built-in sample if no model URL provided — uses Three.js's hosted example.
+    // Default sample. The gkjohnson mirror packs the same car.mpd Three.js uses
+    // in its own examples — small enough to load fast but with real bricks.
     const url =
       modelUrl ??
-      "https://raw.githubusercontent.com/mrdoob/three.js/master/examples/models/ldraw/officialLibrary/models/car.ldr_Packed.mpd";
+      "https://raw.githubusercontent.com/gkjohnson/ldraw-parts-library/master/models/car.ldr_Packed.mpd";
 
     loader.load(
       url,
@@ -144,21 +158,60 @@ export default function LdrawViewer({
           scene.remove(stateRef.current.model);
         }
 
-        // Merge subassemblies for performance.
-        const merged = LDrawUtils.mergeObject(group);
+        // CRITICAL: do NOT merge meshes. Each brick must remain its own
+        // addressable object so we can drive explode, step isolation, hover,
+        // and click. (Earlier version called LDrawUtils.mergeObject which
+        // collapsed all bricks of the same color into a single mesh — that's
+        // why the model moved as a single rigid blob.)
 
-        // LDraw uses Y-down; flip to Y-up.
-        merged.rotation.x = Math.PI;
+        // LDraw uses Y-down; flip to Y-up so our camera/controls make sense.
+        group.rotation.x = Math.PI;
 
-        scene.add(merged);
-        stateRef.current.model = merged;
+        scene.add(group);
+        stateRef.current.model = group;
 
-        // Build step list (LDraw groups bricks into steps when authored that way).
+        // Identify per-brick nodes. LDrawLoader emits a Group per .dat reference
+        // in the source file; bricks are the leaf groups whose children are
+        // meshes (no further nested groups).
+        const bricks: THREE.Object3D[] = [];
+        group.traverse((node) => {
+          const isLeafGroup =
+            (node as any).isGroup &&
+            node.children.length > 0 &&
+            node.children.every((c) => (c as any).isMesh);
+          if (isLeafGroup) bricks.push(node);
+        });
+
+        // Fallback for pre-merged MPDs with no brick-level groups: treat each
+        // mesh as its own brick.
+        if (bricks.length === 0) {
+          group.traverse((node) => {
+            if ((node as any).isMesh) bricks.push(node);
+          });
+        }
+
+        stateRef.current.bricks = bricks;
+        setBrickCount(bricks.length);
+
+        // Compute bbox + cache per-brick reference data for explode.
+        const bbox = new THREE.Box3().setFromObject(group);
+        stateRef.current.bbox = bbox;
+        const center = new THREE.Vector3();
+        bbox.getCenter(center);
+        bricks.forEach((b) => {
+          const worldPos = new THREE.Vector3();
+          b.getWorldPosition(worldPos);
+          b.userData.originalPosition = b.position.clone();
+          b.userData.worldCenterOffset = worldPos.clone().sub(center);
+        });
+
+        // Build step list (LDraw files may group bricks into authored steps).
         const steps: THREE.Group[] = [];
-        merged.traverse((child) => {
-          // The LDrawLoader assigns userData.constructionStep to indicate step membership.
-          // We collect step group nodes for the step-through UI.
-          if ((child as any).isGroup && (child as any).userData?.constructionStep !== undefined) {
+        group.traverse((child) => {
+          if (
+            (child as any).isGroup &&
+            (child as any).userData?.constructionStep !== undefined
+          ) {
             steps.push(child as THREE.Group);
           }
         });
@@ -166,16 +219,16 @@ export default function LdrawViewer({
         setTotalSteps(steps.length);
 
         // Fit camera to model bounds.
-        const bbox = new THREE.Box3().setFromObject(merged);
-        stateRef.current.bbox = bbox;
         const size = new THREE.Vector3();
-        const center = new THREE.Vector3();
         bbox.getSize(size);
-        bbox.getCenter(center);
         const maxDim = Math.max(size.x, size.y, size.z);
         const cam = stateRef.current.camera!;
         const ctrl = stateRef.current.controls!;
-        cam.position.set(center.x + maxDim * 1.2, center.y + maxDim * 1.0, center.z + maxDim * 1.5);
+        cam.position.set(
+          center.x + maxDim * 1.2,
+          center.y + maxDim * 1.0,
+          center.z + maxDim * 1.5
+        );
         ctrl.target.copy(center);
         ctrl.update();
 
@@ -185,31 +238,37 @@ export default function LdrawViewer({
       (err) => {
         console.error("LDraw load failed", err);
         setLoadError(
-          "Couldn't load this model. If you're seeing this in dev, the LDraw parts library may not be installed in /public/ldraw. Run the ingest script in worker/ingest_ldraw.py."
+          "Couldn't load this model. Check the browser console for the underlying error — most often a network issue fetching part .dat files from the LDraw mirror."
         );
         setLoading(false);
       }
     );
   }, [modelUrl, partsLibraryPath]);
 
-  // -------- Explode view --------
+  // -------- Explode view (per brick) --------
   useEffect(() => {
-    const model = stateRef.current.model;
+    const bricks = stateRef.current.bricks;
     const bbox = stateRef.current.bbox;
-    if (!model || !bbox) return;
-    const center = new THREE.Vector3();
-    bbox.getCenter(center);
-    model.traverse((child) => {
-      if ((child as any).isMesh) {
-        const mesh = child as THREE.Mesh;
-        if (!mesh.userData.originalPosition) {
-          mesh.userData.originalPosition = mesh.position.clone();
-        }
-        const orig: THREE.Vector3 = mesh.userData.originalPosition;
-        const dir = orig.clone().sub(center).normalize();
-        const offset = dir.multiplyScalar(explode * 60);
-        mesh.position.copy(orig).add(offset);
+    if (!bricks || bricks.length === 0 || !bbox) return;
+
+    const size = new THREE.Vector3();
+    bbox.getSize(size);
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const strength = explode * maxDim * 0.6;
+
+    bricks.forEach((b) => {
+      const orig: THREE.Vector3 | undefined = b.userData.originalPosition;
+      const offsetDir: THREE.Vector3 | undefined = b.userData.worldCenterOffset;
+      if (!orig || !offsetDir) return;
+      const dir = offsetDir.clone();
+      if (dir.lengthSq() < 1e-6) {
+        // Brick is exactly at center — pick a stable arbitrary direction so
+        // it still separates from neighbors as you slide.
+        dir.set(0, 1, 0);
+      } else {
+        dir.normalize();
       }
+      b.position.copy(orig).addScaledVector(dir, strength);
     });
   }, [explode]);
 
@@ -263,7 +322,12 @@ export default function LdrawViewer({
       {/* Top-left: status */}
       {loading && (
         <div className="absolute top-3 left-3 rounded-md bg-neutral-900/80 px-3 py-1.5 text-sm">
-          Loading model…
+          Loading model… (first load fetches parts from CDN — give it a few seconds)
+        </div>
+      )}
+      {!loading && brickCount > 0 && (
+        <div className="absolute top-3 left-3 rounded-md bg-neutral-900/80 px-3 py-1.5 text-xs">
+          {brickCount} bricks
         </div>
       )}
       {loadError && (
