@@ -49,10 +49,9 @@ export async function POST(req: Request) {
     const taskId = await createTextTo3DTask({
       prompt,
       mode: mode ?? "preview",
-      // Negative prompt steers Meshy away from outputs that won't voxelize well.
-      negativePrompt:
-        "complex curves, organic flowing shapes, fragile thin tendrils, ultra-fine detail",
-      artStyle: "realistic",
+      // Lower polycount = faster generation and easier to voxelize for LegoGPT.
+      // Meshy's default 30k is overkill for our LEGO use case.
+      targetPolycount: 5000,
     });
 
     return NextResponse.json({

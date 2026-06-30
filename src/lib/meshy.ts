@@ -18,10 +18,10 @@ export type MeshyMode = "preview" | "refine";
 
 export interface MeshyTextTo3DOptions {
   prompt: string;
-  negativePrompt?: string;
   mode?: MeshyMode;             // "preview" is fast + free credits; "refine" is higher quality
-  artStyle?: "realistic" | "sculpture" | "cartoon"; // Meshy v2 vocabulary
-  seed?: number;
+  // Meshy 6 defaults are sensible; only pass these if you need to override.
+  targetPolycount?: number;     // 100..300_000; default 30_000
+  modelType?: "standard" | "lowpoly";
   // Polling tunables
   pollEveryMs?: number;
   timeoutMs?: number;
@@ -56,13 +56,16 @@ export async function createTextTo3DTask(
   opts: MeshyTextTo3DOptions
 ): Promise<string> {
   const apiKey = requireApiKey();
+  // Meshy-6 defaults are good; send only the minimum required fields. We used
+  // to send `art_style` and `negative_prompt` here but Meshy docs explicitly
+  // mark both as deprecated for Meshy-6, and sending `art_style` can cause
+  // the new model to stall or error.
   const body: Record<string, unknown> = {
     mode: opts.mode ?? "preview",
     prompt: opts.prompt,
   };
-  if (opts.negativePrompt) body.negative_prompt = opts.negativePrompt;
-  if (opts.artStyle) body.art_style = opts.artStyle;
-  if (opts.seed !== undefined) body.seed = opts.seed;
+  if (opts.targetPolycount) body.target_polycount = opts.targetPolycount;
+  if (opts.modelType) body.model_type = opts.modelType;
 
   const res = await fetch(`${MESHY_API_BASE}/openapi/v2/text-to-3d`, {
     method: "POST",
