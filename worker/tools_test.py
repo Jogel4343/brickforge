@@ -32,11 +32,20 @@ def run_tool_checks() -> dict:
         "sample_lookup_brick_2x4": [
             hit.to_dict() for hit in lookup_part("brick 2x4", limit=3)
         ],
+        "sample_lookup_plate_2x2": [
+            hit.to_dict() for hit in lookup_part("plate 2x2", limit=3)
+        ],
         "sample_lookup_wedge_plate": [
             hit.to_dict() for hit in lookup_part("wedge plate", limit=3)
         ],
-        "sample_lookup_slope_45": [
-            hit.to_dict() for hit in lookup_part("slope 45", limit=3)
+        "sample_lookup_slope_45_2x2": [
+            hit.to_dict() for hit in lookup_part("slope 45 2x2", limit=3)
+        ],
+        "sample_lookup_tile_1x4": [
+            hit.to_dict() for hit in lookup_part("tile 1x4", limit=3)
+        ],
+        "sample_lookup_technic_pin": [
+            hit.to_dict() for hit in lookup_part("technic pin", limit=3)
         ],
         "sample_similar_to_3001": [
             hit.to_dict() for hit in find_similar_parts("3001", n=3)
