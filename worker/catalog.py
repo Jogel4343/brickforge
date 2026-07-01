@@ -18,6 +18,7 @@ Provides the building blocks for the three LLM tools:
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, asdict
 from functools import lru_cache
@@ -163,21 +164,62 @@ def _parse_parts(parts_lst: Path, official: bool = True) -> list[Part]:
 # Catalog factory
 # ---------------------------------------------------------------------------
 
+# All the places we might find the LDraw library. Different zip package
+# layouts and different Docker install paths land it in different places, so
+# we try a broad list rather than guess.
 _LDRAW_ROOT_CANDIDATES = [
-    Path("/root/ldraw"),                 # what the Modal worker image builds
+    Path("/root/ldraw"),                 # Modal image, direct unzip
+    Path("/root/ldraw/ldraw"),           # Modal image, nested-in-zip layout
     Path("/opt/ldraw"),
+    Path("/opt/legogpt/ldraw"),          # in case LegoGPT pulled it into its dir
     Path.home() / "ldraw",
+    Path.home() / "ldraw" / "ldraw",
 ]
 
 
+def _is_ldraw_root(p: Path) -> bool:
+    return (p / "LDConfig.ldr").exists() and (p / "parts.lst").exists()
+
+
 def find_ldraw_root() -> Path:
+    # Environment override wins if set.
+    env_path = os.environ.get("LDRAW_LIBRARY_PATH")
+    if env_path:
+        p = Path(env_path)
+        if _is_ldraw_root(p):
+            return p
+        # Also try the nested layout under the env-provided root.
+        if _is_ldraw_root(p / "ldraw"):
+            return p / "ldraw"
+
     for cand in _LDRAW_ROOT_CANDIDATES:
-        if (cand / "LDConfig.ldr").exists() and (cand / "parts.lst").exists():
+        if _is_ldraw_root(cand):
             return cand
-    raise FileNotFoundError(
-        "Couldn't find an LDraw library. Tried: "
-        + ", ".join(str(p) for p in _LDRAW_ROOT_CANDIDATES)
-    )
+
+    # No luck. Dump helpful diagnostics so we can see what IS in the container.
+    diag: list[str] = [
+        "Couldn't find an LDraw library.",
+        f"LDRAW_LIBRARY_PATH env var: {env_path!r}",
+        "Tried the following candidates:",
+    ]
+    for cand in _LDRAW_ROOT_CANDIDATES:
+        diag.append(f"  {cand}  exists={cand.exists()}")
+        if cand.exists() and cand.is_dir():
+            try:
+                children = sorted(x.name for x in cand.iterdir())[:15]
+                diag.append(f"    contents (first 15): {children}")
+            except OSError as exc:
+                diag.append(f"    (couldn't list: {exc})")
+    # Also list /root, /opt, and $HOME so we can see what actually shipped.
+    for probe in (Path("/root"), Path("/opt"), Path.home()):
+        if probe.exists() and probe.is_dir():
+            try:
+                children = sorted(x.name for x in probe.iterdir())[:20]
+                diag.append(f"  {probe} contents (first 20): {children}")
+            except OSError:
+                pass
+
+    raise FileNotFoundError("\n".join(diag))
 
 
 @lru_cache(maxsize=1)
