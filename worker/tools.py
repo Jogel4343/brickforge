@@ -9,17 +9,14 @@ Tools:
   - lookup_part(query, ...)              -> list[PartHit]
   - find_similar_parts(ldraw_id, n)      -> list[PartHit]
   - check_assembly_validity(parts)       -> ValidationResult
-
-Each tool is a pure function over the in-memory catalog. They're cheap
-(microseconds) so the LLM can call them freely.
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
-from typing import Iterable
 
-from worker.catalog import Catalog, Part, load_catalog, part_to_dict
+from worker.catalog import Catalog, Part, load_catalog
 
 
 # ---------------------------------------------------------------------------
@@ -57,6 +54,99 @@ class ValidationResult:
 
 
 # ---------------------------------------------------------------------------
+# Ranking helpers
+# ---------------------------------------------------------------------------
+
+# Name tokens that mark a part as a decorated / sticker / printed variant.
+# Heavily penalized so plain functional parts float to the top when the LLM
+# asks for something generic like "brick 2x4".
+_DECORATION_PENALTY_TOKENS = {
+    "pattern", "sticker", "printed", "print", "decorated",
+    "hieroglyphs", "logo", "badge", "stripes", "emblem",
+    "background",
+}
+
+# LDraw part IDs with a lowercase letter suffix (e.g. "3001p01", "3062b",
+# "3001c00") are almost always decorated / regional variants of a base part.
+# Pure-numeric IDs (e.g. "3001") are the canonical plain versions.
+_ID_VARIANT_RE = re.compile(r"[a-z]")
+
+
+def _tokenize(s: str) -> set[str]:
+    return {tok for tok in re.split(r"[^a-z0-9]+", s.lower()) if tok}
+
+
+def _parse_dimensions_from_query(query: str) -> tuple[int | None, int | None]:
+    """Pull dimensions out of queries like '2x4', '1 x 8', '2 x 2', 'brick 4x2'.
+    Returns (width, length) or (None, None) if no dimensions found."""
+    m = re.search(r"(\d+)\s*[xX\u00d7]\s*(\d+)", query)
+    if m:
+        return int(m.group(1)), int(m.group(2))
+    return None, None
+
+
+def _dims_compatible(p: Part, want_w: int | None, want_l: int | None) -> bool:
+    """A 2x4 brick and a 4x2 brick are the same physical part; be
+    order-agnostic in matching."""
+    pw, pl = p.width_studs, p.length_studs
+    if want_w is not None and want_l is not None:
+        if pw is None or pl is None:
+            return False
+        return {pw, pl} == {want_w, want_l}
+    if want_w is not None:
+        return pw == want_w or pl == want_w
+    if want_l is not None:
+        return pw == want_l or pl == want_l
+    return True
+
+
+def _score(
+    p: Part,
+    q_tokens: set[str],
+    want_w: int | None,
+    want_l: int | None,
+) -> float:
+    name_tokens = _tokenize(p.name)
+    if not name_tokens:
+        return 0.0
+
+    # 1. Base score: overlap of query tokens with part-name tokens
+    overlap = len(q_tokens & name_tokens)
+    base = overlap / max(len(q_tokens), 1) if q_tokens else 0.5
+
+    # 2. Dimensional match: exact = +1.0, off by 1 = +0.2
+    dim_bonus = 0.0
+    if want_w is not None and want_l is not None:
+        want_pair = tuple(sorted([want_w, want_l]))
+        got_pair = tuple(sorted([p.width_studs or 0, p.length_studs or 0]))
+        if want_pair == got_pair:
+            dim_bonus += 1.0
+        elif abs(want_pair[0] - got_pair[0]) + abs(want_pair[1] - got_pair[1]) <= 1:
+            dim_bonus += 0.2
+    else:
+        if want_w is not None and p.width_studs is not None:
+            diff = abs(want_w - p.width_studs)
+            dim_bonus += 0.5 if diff == 0 else (0.1 if diff == 1 else 0.0)
+        if want_l is not None and p.length_studs is not None:
+            diff = abs(want_l - p.length_studs)
+            dim_bonus += 0.5 if diff == 0 else (0.1 if diff == 1 else 0.0)
+
+    # 3. Length penalty: prefer short, plain names over long decorated ones.
+    length_penalty = max(0, len(name_tokens) - 5) * 0.05
+
+    # 4. Decoration penalty on name tokens
+    decoration_penalty = 0.0
+    for tok in name_tokens:
+        if tok in _DECORATION_PENALTY_TOKENS:
+            decoration_penalty += 0.5
+
+    # 5. Variant-ID penalty on IDs with letter suffixes
+    id_variant_penalty = 0.3 if _ID_VARIANT_RE.search(p.ldraw_id) else 0.0
+
+    return base + dim_bonus - length_penalty - decoration_penalty - id_variant_penalty
+
+
+# ---------------------------------------------------------------------------
 # Tool: lookup_part
 # ---------------------------------------------------------------------------
 
@@ -70,15 +160,22 @@ def lookup_part(
 ) -> list[PartHit]:
     """Fuzzy search the LDraw catalog by free-text query + optional filters.
 
-    Scoring is intentionally simple to start: count overlap of query tokens
-    with part-name tokens, boost exact dimensional matches. The LLM gets up
-    to `limit` candidates back; it picks one for its assembly plan.
+    Parses dimensions out of the query itself ("2x4", "1 x 8"), uses them
+    as strong filters, and heavily penalizes decorated/sticker variants
+    so the LLM gets plain functional parts by default.
     """
     cat = catalog or load_catalog()
 
-    q_tokens = _tokenize(query)
-    if not q_tokens:
-        return []
+    # Extract dimensions from the query if the caller didn't pass them.
+    q_width, q_length = _parse_dimensions_from_query(query)
+    if width_studs is None and q_width is not None:
+        width_studs = q_width
+    if length_studs is None and q_length is not None:
+        length_studs = q_length
+
+    # Tokenize the query, but drop pure-numeric tokens and 'x' — they're
+    # already handled as dimensions and just add noise to token matching.
+    q_tokens = {t for t in _tokenize(query) if not t.isdigit() and t != "x"}
 
     # Initial candidate set: any part whose name has at least one query token.
     candidate_ids: set[str] = set()
@@ -93,10 +190,9 @@ def lookup_part(
         p = cat.parts[pid]
         if category and p.category != category:
             continue
-        if width_studs is not None and p.width_studs != width_studs:
-            continue
-        if length_studs is not None and p.length_studs != length_studs:
-            continue
+        if width_studs is not None or length_studs is not None:
+            if not _dims_compatible(p, width_studs, length_studs):
+                continue
 
         score = _score(p, q_tokens, width_studs, length_studs)
         hits.append(
@@ -124,8 +220,7 @@ def find_similar_parts(
     catalog: Catalog | None = None,
 ) -> list[PartHit]:
     """Given a reference part, return others in the same category and rough
-    dimensional family. Useful when the LLM wants 'alternatives if 2x4 plate
-    isn't ideal'."""
+    dimensional family. Useful when the LLM wants alternatives to a part."""
     cat = catalog or load_catalog()
     base = cat.parts.get(ldraw_id)
     if base is None:
@@ -137,11 +232,17 @@ def find_similar_parts(
             continue
         if p.category != base.category:
             continue
-        # Score = how similar are the dimensions
         w_diff = abs((p.width_studs or 0) - (base.width_studs or 0))
         l_diff = abs((p.length_studs or 0) - (base.length_studs or 0))
-        # Lower diff = higher similarity. Normalize to 0..1.
-        score = 1.0 / (1.0 + w_diff + l_diff)
+        # Similarity = lower diff → higher score; also prefer plain over variant.
+        similarity = 1.0 / (1.0 + w_diff + l_diff)
+        id_variant_penalty = 0.3 if _ID_VARIANT_RE.search(p.ldraw_id) else 0.0
+        # Penalize decorated names too.
+        name_tokens = _tokenize(p.name)
+        decoration_penalty = sum(
+            0.3 for tok in name_tokens if tok in _DECORATION_PENALTY_TOKENS
+        )
+        score = similarity - id_variant_penalty - decoration_penalty
         hits.append(
             PartHit(
                 ldraw_id=p.ldraw_id,
@@ -167,12 +268,11 @@ def check_assembly_validity(
 ) -> ValidationResult:
     """Sanity-check a proposed sub-assembly BEFORE the LLM commits to it.
 
-    What this catches at this stage (cheap checks; deeper checks happen in
-    the solver and Gurobi):
-      - Any ldraw_id that doesn't exist in the catalog (hallucination!)
-      - Any color_code that doesn't exist
-      - Empty parts list
-      - Duplicate exact-position parts (would collide)
+    Cheap checks (deeper checks in solver + Gurobi):
+      - Every ldraw_id must exist in the catalog (hallucination defense)
+      - Every color_code must exist
+      - No empty assemblies
+      - No two parts at the same integer (x, y, z)
 
     Input shape:
       [{"ldraw_id": "3001", "color_code": 4, "x": 0, "y": 0, "z": 0}, ...]
@@ -218,41 +318,6 @@ def check_assembly_validity(
 
 
 # ---------------------------------------------------------------------------
-# Scoring helper for lookup_part
-# ---------------------------------------------------------------------------
-
-def _score(
-    p: Part,
-    q_tokens: set[str],
-    want_w: int | None,
-    want_l: int | None,
-) -> float:
-    name_tokens = _tokenize(p.name)
-    if not name_tokens:
-        return 0.0
-
-    overlap = len(q_tokens & name_tokens)
-    base = overlap / max(len(q_tokens), 1)
-
-    # Dimensional bonus: exact match = +0.5, off by 1 = +0.1
-    dim_bonus = 0.0
-    if want_w is not None and p.width_studs is not None:
-        diff = abs(want_w - p.width_studs)
-        dim_bonus += 0.5 if diff == 0 else (0.1 if diff == 1 else 0.0)
-    if want_l is not None and p.length_studs is not None:
-        diff = abs(want_l - p.length_studs)
-        dim_bonus += 0.5 if diff == 0 else (0.1 if diff == 1 else 0.0)
-
-    return base + dim_bonus
-
-
-def _tokenize(s: str) -> set[str]:
-    import re
-
-    return {tok for tok in re.split(r"[^a-z0-9]+", s.lower()) if tok}
-
-
-# ---------------------------------------------------------------------------
 # JSON Schema definitions for Anthropic Claude tool-use
 # ---------------------------------------------------------------------------
 
@@ -270,15 +335,15 @@ TOOL_DEFINITIONS = [
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "Free-text description like '2x4 brick' or 'wedge plate' or 'minifig head'.",
+                    "description": "Free-text like '2x4 brick' or 'wedge plate' or 'minifig head'. Include dimensions in the query when known (they'll be parsed automatically).",
                 },
                 "category": {
                     "type": "string",
-                    "description": "Optional category filter, e.g. 'Brick', 'Plate', 'Slope', 'Tile', 'Technic'.",
+                    "description": "Optional category filter: 'Brick', 'Plate', 'Slope', 'Tile', 'Technic', etc.",
                 },
                 "width_studs": {
                     "type": "integer",
-                    "description": "Optional exact width in studs.",
+                    "description": "Optional exact width in studs (order-independent — 2x4 == 4x2).",
                 },
                 "length_studs": {
                     "type": "integer",
@@ -293,7 +358,7 @@ TOOL_DEFINITIONS = [
         "description": (
             "Given an ldraw_id you've already found, get alternatives in the "
             "same category and dimensional family. Useful when you want to "
-            "swap a part for a smaller/larger one."
+            "swap for a smaller/larger part."
         ),
         "input_schema": {
             "type": "object",
@@ -314,16 +379,16 @@ TOOL_DEFINITIONS = [
     {
         "name": "check_assembly_validity",
         "description": (
-            "Sanity-check a proposed sub-assembly. Call this BEFORE you "
-            "commit to an assembly plan to catch unknown part IDs, invalid "
-            "colors, or position collisions."
+            "Sanity-check a proposed sub-assembly. Call BEFORE committing to "
+            "an assembly plan to catch unknown part IDs, invalid colors, or "
+            "position collisions."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "parts": {
                     "type": "array",
-                    "description": "List of bricks with ldraw_id, color_code, and (x,y,z) position.",
+                    "description": "List of bricks with ldraw_id, color_code, and (x, y, z) position.",
                     "items": {
                         "type": "object",
                         "properties": {
