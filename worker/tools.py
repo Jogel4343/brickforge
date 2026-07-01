@@ -63,7 +63,25 @@ class ValidationResult:
 _DECORATION_PENALTY_TOKENS = {
     "pattern", "sticker", "printed", "print", "decorated",
     "hieroglyphs", "logo", "badge", "stripes", "emblem",
-    "background",
+    "background", "braille", "dots",
+}
+
+# Product-line tokens that mark parts NOT compatible with regular System bricks.
+# Duplo (2x scale), Quatro (4x scale), Fabuland (large chunky), etc. If the user
+# didn't ask for these by name, keep them off the top of the list.
+_PRODUCT_LINE_PENALTY_TOKENS = {
+    "duplo", "quatro", "fabuland", "znap", "scala", "mursten", "train",
+    "primo", "belville",
+}
+
+# Specialization tokens indicating a variant with extra geometry (hinges, clips,
+# joints, connectors, etc). Plain flat bricks/plates/tiles should beat these
+# when the user asks generically.
+_SPECIALIZATION_TOKENS = {
+    "hinge", "joint", "holder", "clip", "connector", "turntable",
+    "corner", "round", "macaroni", "electrical", "electric", "magnet",
+    "magnetic", "friction", "axlehole", "modified", "arch", "curved",
+    "bow", "log", "profile", "grille", "grill",
 }
 
 # LDraw part IDs with a lowercase letter suffix (e.g. "3001p01", "3062b",
@@ -100,6 +118,17 @@ def _dims_compatible(p: Part, want_w: int | None, want_l: int | None) -> bool:
     return True
 
 
+def _alias_penalty(p: Part) -> float:
+    """LDraw prefixes alias entries with '=' and obsolete/moved entries with
+    '~'. These should never be recommended over the canonical part."""
+    name = p.name or ""
+    if name.startswith("~") or "obsolete" in name.lower() or "moved" in name.lower():
+        return 1.5
+    if name.startswith("="):
+        return 0.5
+    return 0.0
+
+
 def _score(
     p: Part,
     q_tokens: set[str],
@@ -132,7 +161,7 @@ def _score(
             dim_bonus += 0.5 if diff == 0 else (0.1 if diff == 1 else 0.0)
 
     # 3. Length penalty: prefer short, plain names over long decorated ones.
-    length_penalty = max(0, len(name_tokens) - 5) * 0.05
+    length_penalty = max(0, len(name_tokens) - 5) * 0.1
 
     # 4. Decoration penalty on name tokens
     decoration_penalty = 0.0
@@ -143,7 +172,31 @@ def _score(
     # 5. Variant-ID penalty on IDs with letter suffixes
     id_variant_penalty = 0.3 if _ID_VARIANT_RE.search(p.ldraw_id) else 0.0
 
-    return base + dim_bonus - length_penalty - decoration_penalty - id_variant_penalty
+    # 6. Product-line penalty — Duplo/Quatro/Fabuland/etc. only if NOT asked for
+    product_line_penalty = 0.0
+    for tok in name_tokens:
+        if tok in _PRODUCT_LINE_PENALTY_TOKENS and tok not in q_tokens:
+            product_line_penalty += 1.5
+
+    # 7. Specialization penalty — hinge/clip/corner/round/etc. only if NOT asked
+    specialization_penalty = 0.0
+    for tok in name_tokens:
+        if tok in _SPECIALIZATION_TOKENS and tok not in q_tokens:
+            specialization_penalty += 0.6
+
+    # 8. Alias / obsolete penalty on name prefix
+    alias_penalty = _alias_penalty(p)
+
+    return (
+        base
+        + dim_bonus
+        - length_penalty
+        - decoration_penalty
+        - id_variant_penalty
+        - product_line_penalty
+        - specialization_penalty
+        - alias_penalty
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -161,8 +214,9 @@ def lookup_part(
     """Fuzzy search the LDraw catalog by free-text query + optional filters.
 
     Parses dimensions out of the query itself ("2x4", "1 x 8"), uses them
-    as strong filters, and heavily penalizes decorated/sticker variants
-    so the LLM gets plain functional parts by default.
+    as strong filters, and heavily penalizes decorated/sticker variants,
+    Duplo/Quatro product lines, and specialized (hinge/clip/corner) variants
+    so the LLM gets plain functional System parts by default.
     """
     cat = catalog or load_catalog()
 
@@ -226,6 +280,8 @@ def find_similar_parts(
     if base is None:
         return []
 
+    base_name_tokens = _tokenize(base.name)
+
     hits: list[PartHit] = []
     for pid, p in cat.parts.items():
         if pid == ldraw_id:
@@ -242,7 +298,29 @@ def find_similar_parts(
         decoration_penalty = sum(
             0.3 for tok in name_tokens if tok in _DECORATION_PENALTY_TOKENS
         )
-        score = similarity - id_variant_penalty - decoration_penalty
+        # Product-line penalty: skip Duplo/Quatro unless the base part is also
+        # in that product line.
+        product_line_penalty = 0.0
+        for tok in name_tokens:
+            if tok in _PRODUCT_LINE_PENALTY_TOKENS and tok not in base_name_tokens:
+                product_line_penalty += 1.5
+        # Specialization penalty: skip hinge/clip/corner variants unless the
+        # base already has that specialization.
+        specialization_penalty = 0.0
+        for tok in name_tokens:
+            if tok in _SPECIALIZATION_TOKENS and tok not in base_name_tokens:
+                specialization_penalty += 0.6
+        # Alias / obsolete penalty
+        alias_pen = _alias_penalty(p)
+
+        score = (
+            similarity
+            - id_variant_penalty
+            - decoration_penalty
+            - product_line_penalty
+            - specialization_penalty
+            - alias_pen
+        )
         hits.append(
             PartHit(
                 ldraw_id=p.ldraw_id,
