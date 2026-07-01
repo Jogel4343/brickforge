@@ -131,7 +131,8 @@ def _parse_colors(ldconfig: Path) -> list[Color]:
     return out
 
 
-def _parse_parts(parts_lst: Path, official: bool = True) -> list[Part]:
+def _parse_parts_from_lst(parts_lst: Path, official: bool = True) -> list[Part]:
+    """Parse parts from an LDraw-style parts.lst index. Fast path."""
     out: list[Part] = []
     if not parts_lst.exists():
         return out
@@ -160,6 +161,48 @@ def _parse_parts(parts_lst: Path, official: bool = True) -> list[Part]:
     return out
 
 
+def _parse_parts_from_dir(parts_dir: Path, official: bool = True) -> list[Part]:
+    """Fallback: walk parts/*.dat, read the description from the first line of
+    each file.
+
+    LDraw .dat file format: the very first line is a comment holding the
+    part description, e.g.:
+        0 Brick  2 x  4
+        0 !CATEGORY Brick
+        ...
+
+    Reading only the first line of ~17K files takes ~10s; result cached
+    via @lru_cache so this only pays once per container lifetime.
+    """
+    out: list[Part] = []
+    if not parts_dir.is_dir():
+        return out
+    for dat in parts_dir.glob("*.dat"):
+        try:
+            with dat.open(encoding="utf-8", errors="ignore") as f:
+                first_line = f.readline().rstrip("\n")
+        except OSError:
+            continue
+        # Expected: '0 <description>'
+        if first_line.startswith("0 "):
+            desc = first_line[2:].strip()
+        else:
+            desc = dat.stem  # fallback to file name
+        ldraw_id = dat.stem
+        w, l = _parse_dimensions(desc)
+        out.append(
+            Part(
+                ldraw_id=ldraw_id,
+                name=desc,
+                category=_categorize(desc),
+                width_studs=w,
+                length_studs=l,
+                is_official=official,
+            )
+        )
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Catalog factory
 # ---------------------------------------------------------------------------
@@ -178,7 +221,10 @@ _LDRAW_ROOT_CANDIDATES = [
 
 
 def _is_ldraw_root(p: Path) -> bool:
-    return (p / "LDConfig.ldr").exists() and (p / "parts.lst").exists()
+    # We require LDConfig.ldr (color palette) and a parts/ directory. parts.lst
+    # would be nice but the 'updates' zip from LDraw's CDN doesn't include it;
+    # if it's missing we fall back to walking parts/*.dat directly.
+    return (p / "LDConfig.ldr").exists() and (p / "parts").is_dir()
 
 
 def find_ldraw_root() -> Path:
@@ -228,7 +274,15 @@ def load_catalog() -> Catalog:
     root = find_ldraw_root()
 
     colors = _parse_colors(root / "LDConfig.ldr")
-    parts = _parse_parts(root / "parts.lst", official=True)
+
+    # Prefer parts.lst if present (much faster), fall back to walking parts/
+    # directory. The 'updates' zip from library.ldraw.org DOESN'T include
+    # parts.lst, so we walk parts/ in the fallback.
+    parts_lst = root / "parts.lst"
+    if parts_lst.exists():
+        parts = _parse_parts_from_lst(parts_lst, official=True)
+    else:
+        parts = _parse_parts_from_dir(root / "parts", official=True)
 
     # Build secondary indexes
     parts_by_id = {p.ldraw_id: p for p in parts}
