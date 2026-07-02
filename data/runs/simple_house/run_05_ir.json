@@ -1,0 +1,126 @@
+{
+  "name": "simple_house",
+  "schema_version": "0.1",
+  "sub_assemblies": [
+    {
+      "name": "wall_front",
+      "shape": "box",
+      "position_studs": [
+        0,
+        0,
+        0
+      ],
+      "dims_studs": [
+        12,
+        6,
+        1
+      ],
+      "color_code": 15
+    },
+    {
+      "name": "wall_back",
+      "shape": "box",
+      "position_studs": [
+        0,
+        0,
+        9
+      ],
+      "dims_studs": [
+        12,
+        6,
+        1
+      ],
+      "color_code": 15
+    },
+    {
+      "name": "wall_left",
+      "shape": "box",
+      "position_studs": [
+        0,
+        0,
+        1
+      ],
+      "dims_studs": [
+        1,
+        6,
+        8
+      ],
+      "color_code": 15
+    },
+    {
+      "name": "wall_right",
+      "shape": "box",
+      "position_studs": [
+        11,
+        0,
+        1
+      ],
+      "dims_studs": [
+        1,
+        6,
+        8
+      ],
+      "color_code": 15
+    },
+    {
+      "name": "door",
+      "shape": "box",
+      "position_studs": [
+        5,
+        0,
+        0
+      ],
+      "dims_studs": [
+        2,
+        3,
+        1
+      ],
+      "color_code": 70
+    },
+    {
+      "name": "window_left",
+      "shape": "box",
+      "position_studs": [
+        2,
+        3,
+        0
+      ],
+      "dims_studs": [
+        2,
+        2,
+        1
+      ],
+      "color_code": 1
+    },
+    {
+      "name": "window_right",
+      "shape": "box",
+      "position_studs": [
+        8,
+        3,
+        0
+      ],
+      "dims_studs": [
+        2,
+        2,
+        1
+      ],
+      "color_code": 1
+    },
+    {
+      "name": "roof",
+      "shape": "cone",
+      "position_studs": [
+        0,
+        6,
+        0
+      ],
+      "dims_studs": [
+        12,
+        5,
+        10
+      ],
+      "color_code": 4
+    }
+  ]
+}

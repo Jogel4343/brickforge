@@ -1,0 +1,76 @@
+{
+  "name": "simple_house",
+  "schema_version": "0.1",
+  "sub_assemblies": [
+    {
+      "name": "floor",
+      "shape": "box",
+      "position_studs": [0, 0, 0],
+      "dims_studs": [10, 1, 8],
+      "color_code": 71
+    },
+    {
+      "name": "wall_north",
+      "shape": "box",
+      "position_studs": [0, 1, 0],
+      "dims_studs": [10, 6, 1],
+      "color_code": 15
+    },
+    {
+      "name": "wall_south",
+      "shape": "box",
+      "position_studs": [0, 1, 7],
+      "dims_studs": [10, 6, 1],
+      "color_code": 15
+    },
+    {
+      "name": "wall_west",
+      "shape": "box",
+      "position_studs": [0, 1, 1],
+      "dims_studs": [1, 6, 6],
+      "color_code": 15
+    },
+    {
+      "name": "wall_east",
+      "shape": "box",
+      "position_studs": [9, 1, 1],
+      "dims_studs": [1, 6, 6],
+      "color_code": 15
+    },
+    {
+      "name": "door",
+      "shape": "box",
+      "position_studs": [4, 1, 0],
+      "dims_studs": [2, 4, 1],
+      "color_code": 70
+    },
+    {
+      "name": "window_west",
+      "shape": "box",
+      "position_studs": [0, 3, 3],
+      "dims_studs": [1, 2, 2],
+      "color_code": 1
+    },
+    {
+      "name": "window_east",
+      "shape": "box",
+      "position_studs": [9, 3, 3],
+      "dims_studs": [1, 2, 2],
+      "color_code": 1
+    },
+    {
+      "name": "roof",
+      "shape": "cone",
+      "position_studs": [0, 7, 0],
+      "dims_studs": [10, 5, 8],
+      "color_code": 4
+    },
+    {
+      "name": "chimney",
+      "shape": "box",
+      "position_studs": [7, 7, 1],
+      "dims_studs": [1, 4, 1],
+      "color_code": 72
+    }
+  ]
+}
