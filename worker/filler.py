@@ -1,11 +1,14 @@
 """Legolization filler — turn IR shape primitives into placed bricks.
 
-v0.1 scope, deliberately tiny:
+v0.2 scope, deliberately tiny:
   - Two shapes supported: 'box' and 'cone'
   - ~10-part whitelisted vocabulary
-  - No interlocking (bricks stack in aligned columns — cheap and dumb)
+  - Interlocking via seam-phase offset: odd layers (by absolute Y course)
+    start each row with a 2-stud-long brick, so vertical seams land 2 studs
+    away from the seams of even layers instead of stacking into full-height
+    cracks.
   - No SNOT, no wedges, no aerodynamic surfaces
-  - Rotation limited to 0° (v0.2 will add 90° for better packing)
+  - Rotation limited to 0°/90° about vertical
 
 The whole point of this file is to be a KNOWN-GOOD FIXTURE. When Claude
 starts emitting IRs in Push B.2, any pipeline failure is attributable to
@@ -45,27 +48,33 @@ from worker.ldr_writer import PlacedBrick, BRICK_LDU, PLATE_LDU
 @dataclass(frozen=True)
 class VocabBrick:
     part_id: str
-    footprint: tuple[int, int]   # (width_x, depth_z) in studs
+    footprint: tuple[int, int]   # (size_x, size_z) in studs, NATIVE .dat orientation
     height_ldu: int              # 24 for brick, 8 for plate
 
 
 # Bricks — sorted largest first so greedy-pack picks big pieces before small.
+#
+# Footprints are (size_x, size_z) of the part's NATIVE LDraw geometry, NOT
+# the name order. "Brick 1 x 4" (3010) runs its long axis along X in
+# 3010.dat, so its footprint is (4, 1). Getting this wrong renders every
+# rotated brick 90° off from where the packer thinks it is. Any new vocab
+# part must be checked against its .dat geometry, not its name.
 BRICKS: list[VocabBrick] = [
-    VocabBrick("3001", (2, 4), BRICK_LDU),   # Brick 2 x 4
-    VocabBrick("3002", (2, 3), BRICK_LDU),   # Brick 2 x 3
+    VocabBrick("3001", (4, 2), BRICK_LDU),   # Brick 2 x 4
+    VocabBrick("3002", (3, 2), BRICK_LDU),   # Brick 2 x 3
     VocabBrick("3003", (2, 2), BRICK_LDU),   # Brick 2 x 2
-    VocabBrick("3010", (1, 4), BRICK_LDU),   # Brick 1 x 4
-    VocabBrick("3622", (1, 3), BRICK_LDU),   # Brick 1 x 3
-    VocabBrick("3004", (1, 2), BRICK_LDU),   # Brick 1 x 2
+    VocabBrick("3010", (4, 1), BRICK_LDU),   # Brick 1 x 4
+    VocabBrick("3622", (3, 1), BRICK_LDU),   # Brick 1 x 3
+    VocabBrick("3004", (2, 1), BRICK_LDU),   # Brick 1 x 2
     VocabBrick("3005", (1, 1), BRICK_LDU),   # Brick 1 x 1
 ]
 
-# Plates (thin) — reserved for v0.2 mixed-height fills. Unused in v0.1.
+# Plates (thin) — reserved for future mixed-height fills. Unused for now.
 PLATES: list[VocabBrick] = [
-    VocabBrick("3020", (2, 4), PLATE_LDU),   # Plate 2 x 4
-    VocabBrick("3021", (2, 3), PLATE_LDU),   # Plate 2 x 3
+    VocabBrick("3020", (4, 2), PLATE_LDU),   # Plate 2 x 4
+    VocabBrick("3021", (3, 2), PLATE_LDU),   # Plate 2 x 3
     VocabBrick("3022", (2, 2), PLATE_LDU),   # Plate 2 x 2
-    VocabBrick("3023", (1, 2), PLATE_LDU),   # Plate 1 x 2
+    VocabBrick("3023", (2, 1), PLATE_LDU),   # Plate 1 x 2
     VocabBrick("3024", (1, 1), PLATE_LDU),   # Plate 1 x 1
 ]
 
@@ -78,6 +87,37 @@ CONE_TIP = VocabBrick("3062", (1, 1), BRICK_LDU)   # Round Brick 1x1 (stand-in t
 # Box filler
 # ---------------------------------------------------------------------------
 
+def _best_fit(
+    grid: list[list[bool]],
+    width: int,
+    depth: int,
+    col: int,
+    row: int,
+    predicate=None,
+) -> tuple[VocabBrick, int, int, int] | None:
+    """Largest vocab brick (by area) that fits at (col, row) without
+    overlap, trying both the native footprint and the 90°-rotated one.
+    `predicate(w, d)` optionally restricts candidate oriented footprints.
+
+    Returns (brick, oriented_w, oriented_d, rotation_deg) or None.
+    """
+    best: tuple[VocabBrick, int, int, int] | None = None
+    best_area = 0
+    for vb in BRICKS:
+        for rot, (w, d) in ((0, vb.footprint), (90, (vb.footprint[1], vb.footprint[0]))):
+            if predicate is not None and not predicate(w, d):
+                continue
+            if col + w > width or row + d > depth:
+                continue
+            if any(grid[row + dz][col + dx] for dz in range(d) for dx in range(w)):
+                continue
+            area = w * d
+            if area > best_area:
+                best_area = area
+                best = (vb, w, d, rot)
+    return best
+
+
 def _fill_layer(
     width: int,
     depth: int,
@@ -85,9 +125,16 @@ def _fill_layer(
     z_offset_stud: int,
     y_ldu: int,
     color_code: int,
+    phase: int = 0,
 ) -> list[PlacedBrick]:
     """Greedy-fill a rectangular footprint (width x depth) at a given
     vertical position. Bricks placed left-to-right, front-to-back.
+
+    `phase` staggers seams between vertically adjacent layers: on phase-1
+    layers the first brick of each row is 2 studs long along X (falling
+    back to 2 studs along Z at the very first cell when the footprint is
+    1 stud wide), so seams land 2 studs off from phase-0 layers and walls
+    interlock instead of forming full-height vertical cracks.
 
     Returns list of PlacedBrick.
     """
@@ -102,33 +149,20 @@ def _fill_layer(
                 col += 1
                 continue
 
-            # Find the biggest vocab brick whose footprint fits at (col, row)
-            # without overlapping any occupied cell. Try both orientations of
-            # each brick (native footprint and 90°-rotated) and prefer the
-            # one with the largest area.
-            chosen: VocabBrick | None = None
-            chosen_w: int = 1
-            chosen_d: int = 1
-            chosen_rot: int = 0
-            best_area: int = 0
-            for vb in BRICKS:
-                for rot, (w, d) in ((0, vb.footprint), (90, (vb.footprint[1], vb.footprint[0]))):
-                    if col + w > width or row + d > depth:
-                        continue
-                    if any(grid[row + dz][col + dx] for dz in range(d) for dx in range(w)):
-                        continue
-                    area = w * d
-                    if area > best_area:
-                        best_area = area
-                        chosen = vb
-                        chosen_w, chosen_d, chosen_rot = w, d, rot
-                        if vb.footprint == (w, d) and vb == BRICKS[0]:
-                            break  # biggest possible, stop early
+            fit: tuple[VocabBrick, int, int, int] | None = None
+            if phase == 1 and col == 0:
+                fit = _best_fit(grid, width, depth, col, row, predicate=lambda w, d: w == 2)
+                if fit is None and row == 0:
+                    fit = _best_fit(grid, width, depth, col, row, predicate=lambda w, d: w == 1 and d == 2)
+            if fit is None:
+                fit = _best_fit(grid, width, depth, col, row)
 
-            if chosen is None:
+            if fit is None:
                 # Fall back to 1x1 (should never fail — 1x1 fits anywhere)
                 chosen = BRICKS[-1]  # 3005
                 chosen_w, chosen_d, chosen_rot = 1, 1, 0
+            else:
+                chosen, chosen_w, chosen_d, chosen_rot = fit
 
             for dz in range(chosen_d):
                 for dx in range(chosen_w):
@@ -177,6 +211,7 @@ def fill_box(sa: SubAssembly) -> list[PlacedBrick]:
             z_offset_stud=pz,
             y_ldu=y_ldu,
             color_code=color,
+            phase=(py + layer) % 2,
         ))
     return placed
 
@@ -236,6 +271,7 @@ def fill_cone(sa: SubAssembly) -> list[PlacedBrick]:
             z_offset_stud=layer_pz,
             y_ldu=y_ldu,
             color_code=color,
+            phase=(py + layer) % 2,
         ))
     return placed
 
