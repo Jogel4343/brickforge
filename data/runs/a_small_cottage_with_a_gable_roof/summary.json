@@ -1,0 +1,48 @@
+{
+  "prompt": "a small cottage with a gable roof",
+  "slug": "a_small_cottage_with_a_gable_roof",
+  "model": "claude-sonnet-5",
+  "transport": "cli",
+  "timestamp": "2026-07-02T05:58:25Z",
+  "n_runs": 3,
+  "n_success": 3,
+  "failures_by_stage": {},
+  "runs": [
+    {
+      "run": 1,
+      "ok": true,
+      "stage_reached": "ldr",
+      "error": null,
+      "raw_file": "run_01_raw.txt",
+      "sub_assemblies": 11,
+      "bricks": 74,
+      "collisions": 0,
+      "ldr_file": "run_01.ldr",
+      "seconds": 60.3
+    },
+    {
+      "run": 2,
+      "ok": true,
+      "stage_reached": "ldr",
+      "error": null,
+      "raw_file": "run_02_raw.txt",
+      "sub_assemblies": 12,
+      "bricks": 58,
+      "collisions": 0,
+      "ldr_file": "run_02.ldr",
+      "seconds": 34.5
+    },
+    {
+      "run": 3,
+      "ok": true,
+      "stage_reached": "ldr",
+      "error": null,
+      "raw_file": "run_03_raw.txt",
+      "sub_assemblies": 17,
+      "bricks": 56,
+      "collisions": 0,
+      "ldr_file": "run_03.ldr",
+      "seconds": 47.7
+    }
+  ]
+}

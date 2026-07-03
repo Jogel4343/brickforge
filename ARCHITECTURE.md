@@ -1,5 +1,15 @@
 # Brickforge architecture
 
+> **STALE — describes an abandoned approach.** This file documents the
+> LegoGPT-direct-generation pipeline (chunked generation, stitcher module,
+> Gurobi stability pass on raw brick output), which was scrapped — see the
+> "remove LegoGPT-era chunked-generation scaffolds" commit. Current
+> architecture: Claude does semantic decomposition into an IR of shape
+> primitives, deterministic Python (`worker/filler.py`) does spatial
+> placement/legolization. See `CLAUDE.md` (canonical) and
+> `docs/V2_1_ARCHITECTURE.md` (adopted 2026-07-01, the actual replacement for
+> this document). Do not use this file to orient a new session.
+
 ## Overview
 
 Three components, deployed independently:

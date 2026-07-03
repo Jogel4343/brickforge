@@ -1,0 +1,178 @@
+{
+  "name": "small_sailboat",
+  "schema_version": "0.1",
+  "sub_assemblies": [
+    {
+      "name": "hull_main",
+      "shape": "tapered_slab",
+      "position_studs": [
+        0,
+        0,
+        0
+      ],
+      "dims_studs": [
+        10,
+        3,
+        20
+      ],
+      "taper_axis": "z",
+      "taper_to_studs": 4,
+      "color_code": 70
+    },
+    {
+      "name": "hull_bow",
+      "shape": "tapered_slab",
+      "position_studs": [
+        3,
+        0,
+        20
+      ],
+      "dims_studs": [
+        4,
+        3,
+        4
+      ],
+      "taper_axis": "z",
+      "taper_to_studs": 1,
+      "color_code": 70
+    },
+    {
+      "name": "deck",
+      "shape": "box",
+      "position_studs": [
+        1,
+        3,
+        1
+      ],
+      "dims_studs": [
+        8,
+        1,
+        18
+      ],
+      "color_code": 70
+    },
+    {
+      "name": "gunwale_port",
+      "shape": "box",
+      "position_studs": [
+        1,
+        4,
+        1
+      ],
+      "dims_studs": [
+        1,
+        1,
+        18
+      ],
+      "color_code": 70
+    },
+    {
+      "name": "gunwale_starboard",
+      "shape": "box",
+      "position_studs": [
+        8,
+        4,
+        1
+      ],
+      "dims_studs": [
+        1,
+        1,
+        18
+      ],
+      "color_code": 70
+    },
+    {
+      "name": "transom",
+      "shape": "box",
+      "position_studs": [
+        0,
+        3,
+        0
+      ],
+      "dims_studs": [
+        10,
+        2,
+        1
+      ],
+      "color_code": 70
+    },
+    {
+      "name": "cabin",
+      "shape": "box",
+      "position_studs": [
+        3,
+        4,
+        8
+      ],
+      "dims_studs": [
+        4,
+        3,
+        4
+      ],
+      "color_code": 15
+    },
+    {
+      "name": "cabin_roof",
+      "shape": "wedge",
+      "position_studs": [
+        3,
+        7,
+        8
+      ],
+      "dims_studs": [
+        4,
+        2,
+        4
+      ],
+      "taper_axis": "z",
+      "color_code": 71
+    },
+    {
+      "name": "mast",
+      "shape": "box",
+      "position_studs": [
+        5,
+        4,
+        4
+      ],
+      "dims_studs": [
+        1,
+        10,
+        1
+      ],
+      "color_code": 19
+    },
+    {
+      "name": "sail",
+      "shape": "wedge",
+      "position_studs": [
+        2,
+        5,
+        4
+      ],
+      "dims_studs": [
+        6,
+        8,
+        1
+      ],
+      "taper_axis": "x",
+      "color_code": 15
+    },
+    {
+      "name": "flag",
+      "shape": "wedge",
+      "position_studs": [
+        5,
+        14,
+        4
+      ],
+      "dims_studs": [
+        2,
+        1,
+        1
+      ],
+      "taper_axis": "x",
+      "color_code": 4
+    }
+  ]
+}

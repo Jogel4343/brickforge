@@ -1,5 +1,13 @@
 # Brickforge
 
+> **STALE — describes an abandoned approach.** This file still documents the
+> LegoGPT-direct-generation pipeline (chunked generation, stitcher, the
+> Week 1-8 plan), which was scrapped. Current architecture: Claude does
+> semantic decomposition into an IR of shape primitives, deterministic Python
+> does spatial placement. See `CLAUDE.md` (canonical) and
+> `docs/V2_1_ARCHITECTURE.md` (adopted 2026-07-01). Do not use this file to
+> orient a new session.
+
 AI-designed LEGO models with step-by-step instructions and priced parts lists.
 
 > **Status: scaffolding (Week 1 of 8).** The viewer renders LDraw files; the

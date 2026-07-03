@@ -1,0 +1,48 @@
+{
+  "prompt": "medieval tower",
+  "slug": "medieval_tower",
+  "model": "claude-sonnet-5",
+  "transport": "cli",
+  "timestamp": "2026-07-02T05:47:23Z",
+  "n_runs": 3,
+  "n_success": 3,
+  "failures_by_stage": {},
+  "runs": [
+    {
+      "run": 1,
+      "ok": true,
+      "stage_reached": "ldr",
+      "error": null,
+      "raw_file": "run_01_raw.txt",
+      "sub_assemblies": 15,
+      "bricks": 131,
+      "collisions": 0,
+      "ldr_file": "run_01.ldr",
+      "seconds": 30.6
+    },
+    {
+      "run": 2,
+      "ok": true,
+      "stage_reached": "ldr",
+      "error": null,
+      "raw_file": "run_02_raw.txt",
+      "sub_assemblies": 26,
+      "bricks": 169,
+      "collisions": 0,
+      "ldr_file": "run_02.ldr",
+      "seconds": 47.0
+    },
+    {
+      "run": 3,
+      "ok": true,
+      "stage_reached": "ldr",
+      "error": null,
+      "raw_file": "run_03_raw.txt",
+      "sub_assemblies": 22,
+      "bricks": 152,
+      "collisions": 0,
+      "ldr_file": "run_03.ldr",
+      "seconds": 48.6
+    }
+  ]
+}

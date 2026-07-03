@@ -1,0 +1,48 @@
+{
+  "prompt": "a small boat with a tapered hull",
+  "slug": "a_small_boat_with_a_tapered_hull",
+  "model": "claude-sonnet-5",
+  "transport": "cli",
+  "timestamp": "2026-07-02T06:01:30Z",
+  "n_runs": 3,
+  "n_success": 3,
+  "failures_by_stage": {},
+  "runs": [
+    {
+      "run": 1,
+      "ok": true,
+      "stage_reached": "ldr",
+      "error": null,
+      "raw_file": "run_01_raw.txt",
+      "sub_assemblies": 10,
+      "bricks": 42,
+      "collisions": 0,
+      "ldr_file": "run_01.ldr",
+      "seconds": 81.3
+    },
+    {
+      "run": 2,
+      "ok": true,
+      "stage_reached": "ldr",
+      "error": null,
+      "raw_file": "run_02_raw.txt",
+      "sub_assemblies": 11,
+      "bricks": 86,
+      "collisions": 0,
+      "ldr_file": "run_02.ldr",
+      "seconds": 72.3
+    },
+    {
+      "run": 3,
+      "ok": true,
+      "stage_reached": "ldr",
+      "error": null,
+      "raw_file": "run_03_raw.txt",
+      "sub_assemblies": 8,
+      "bricks": 79,
+      "collisions": 0,
+      "ldr_file": "run_03.ldr",
+      "seconds": 147.3
+    }
+  ]
+}

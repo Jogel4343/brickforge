@@ -1,0 +1,52 @@
+{
+  "prompt": "a small car",
+  "slug": "a_small_car",
+  "model": "claude-sonnet-5",
+  "transport": "cli",
+  "timestamp": "2026-07-02T06:39:56Z",
+  "n_runs": 2,
+  "n_success": 2,
+  "failures_by_stage": {},
+  "runs": [
+    {
+      "run": 1,
+      "ok": true,
+      "stage_reached": "ldr",
+      "error": null,
+      "raw_file": "run_01_raw.txt",
+      "sub_assemblies": 7,
+      "special_parts": 6,
+      "bricks": 24,
+      "collisions": 0,
+      "special_parts_resolved": [
+        "3482c01",
+        "3482c01",
+        "3482c01",
+        "3482c01",
+        "4070",
+        "4070"
+      ],
+      "ldr_file": "run_01.ldr",
+      "seconds": 67.6
+    },
+    {
+      "run": 2,
+      "ok": true,
+      "stage_reached": "ldr",
+      "error": null,
+      "raw_file": "run_02_raw.txt",
+      "sub_assemblies": 9,
+      "special_parts": 4,
+      "bricks": 17,
+      "collisions": 0,
+      "special_parts_resolved": [
+        "3482c01",
+        "3482c01",
+        "3482c01",
+        "3482c01"
+      ],
+      "ldr_file": "run_02.ldr",
+      "seconds": 67.7
+    }
+  ]
+}

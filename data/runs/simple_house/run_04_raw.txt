@@ -1,0 +1,83 @@
+{
+  "name": "simple_house",
+  "schema_version": "0.1",
+  "sub_assemblies": [
+    {
+      "name": "south_wall_left",
+      "shape": "box",
+      "position_studs": [0, 0, 0],
+      "dims_studs": [4, 6, 1],
+      "color_code": 19
+    },
+    {
+      "name": "south_wall_right",
+      "shape": "box",
+      "position_studs": [6, 0, 0],
+      "dims_studs": [4, 6, 1],
+      "color_code": 19
+    },
+    {
+      "name": "south_wall_lintel",
+      "shape": "box",
+      "position_studs": [4, 5, 0],
+      "dims_studs": [2, 1, 1],
+      "color_code": 19
+    },
+    {
+      "name": "north_wall",
+      "shape": "box",
+      "position_studs": [0, 0, 7],
+      "dims_studs": [10, 6, 1],
+      "color_code": 19
+    },
+    {
+      "name": "west_wall_bottom",
+      "shape": "box",
+      "position_studs": [0, 0, 1],
+      "dims_studs": [1, 2, 6],
+      "color_code": 19
+    },
+    {
+      "name": "west_wall_window",
+      "shape": "box",
+      "position_studs": [0, 2, 1],
+      "dims_studs": [1, 2, 6],
+      "color_code": 1
+    },
+    {
+      "name": "west_wall_top",
+      "shape": "box",
+      "position_studs": [0, 4, 1],
+      "dims_studs": [1, 2, 6],
+      "color_code": 19
+    },
+    {
+      "name": "east_wall_bottom",
+      "shape": "box",
+      "position_studs": [9, 0, 1],
+      "dims_studs": [1, 2, 6],
+      "color_code": 19
+    },
+    {
+      "name": "east_wall_window",
+      "shape": "box",
+      "position_studs": [9, 2, 1],
+      "dims_studs": [1, 2, 6],
+      "color_code": 1
+    },
+    {
+      "name": "east_wall_top",
+      "shape": "box",
+      "position_studs": [9, 4, 1],
+      "dims_studs": [1, 2, 6],
+      "color_code": 19
+    },
+    {
+      "name": "roof",
+      "shape": "cone",
+      "position_studs": [0, 6, 0],
+      "dims_studs": [10, 4, 8],
+      "color_code": 4
+    }
+  ]
+}

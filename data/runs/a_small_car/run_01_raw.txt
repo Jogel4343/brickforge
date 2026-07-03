@@ -1,0 +1,105 @@
+{
+  "name": "small_car",
+  "schema_version": "0.1",
+  "sub_assemblies": [
+    {
+      "name": "chassis",
+      "shape": "box",
+      "position_studs": [0, 0, 0],
+      "dims_studs": [6, 2, 14],
+      "color_code": 4
+    },
+    {
+      "name": "hood",
+      "shape": "wedge",
+      "position_studs": [0, 2, 0],
+      "dims_studs": [6, 2, 4],
+      "taper_axis": "z",
+      "color_code": 4
+    },
+    {
+      "name": "trunk",
+      "shape": "wedge",
+      "position_studs": [0, 2, 10],
+      "dims_studs": [6, 2, 4],
+      "taper_axis": "z",
+      "color_code": 4
+    },
+    {
+      "name": "cabin_glass",
+      "shape": "box",
+      "position_studs": [0, 2, 4],
+      "dims_studs": [6, 3, 6],
+      "color_code": 71
+    },
+    {
+      "name": "roof",
+      "shape": "box",
+      "position_studs": [0, 5, 4],
+      "dims_studs": [6, 1, 6],
+      "color_code": 4
+    },
+    {
+      "name": "front_bumper",
+      "shape": "box",
+      "position_studs": [0, 0, -1],
+      "dims_studs": [6, 1, 1],
+      "color_code": 72
+    },
+    {
+      "name": "rear_bumper",
+      "shape": "box",
+      "position_studs": [0, 0, 14],
+      "dims_studs": [6, 1, 1],
+      "color_code": 72
+    }
+  ],
+  "special_parts": [
+    {
+      "name": "wheel_front_left",
+      "query": "wheel 20mm with tire",
+      "attach_to": "chassis",
+      "offset_studs": [-1, 0, 2],
+      "rotation_deg": 90,
+      "color_code": 0
+    },
+    {
+      "name": "wheel_front_right",
+      "query": "wheel 20mm with tire",
+      "attach_to": "chassis",
+      "offset_studs": [6, 0, 2],
+      "rotation_deg": 90,
+      "color_code": 0
+    },
+    {
+      "name": "wheel_rear_left",
+      "query": "wheel 20mm with tire",
+      "attach_to": "chassis",
+      "offset_studs": [-1, 0, 11],
+      "rotation_deg": 90,
+      "color_code": 0
+    },
+    {
+      "name": "wheel_rear_right",
+      "query": "wheel 20mm with tire",
+      "attach_to": "chassis",
+      "offset_studs": [6, 0, 11],
+      "rotation_deg": 90,
+      "color_code": 0
+    },
+    {
+      "name": "headlight_left",
+      "query": "round 1x1 headlight stud",
+      "attach_to": "hood",
+      "offset_studs": [0, 0, -1],
+      "color_code": 15
+    },
+    {
+      "name": "headlight_right",
+      "query": "round 1x1 headlight stud",
+      "attach_to": "hood",
+      "offset_studs": [5, 0, -1],
+      "color_code": 15
+    }
+  ]
+}

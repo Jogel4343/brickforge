@@ -1,0 +1,84 @@
+{
+  "name": "small_car",
+  "schema_version": "0.1",
+  "sub_assemblies": [
+    {
+      "name": "chassis",
+      "shape": "box",
+      "position_studs": [0, 0, 0],
+      "dims_studs": [12, 2, 6],
+      "color_code": 4
+    },
+    {
+      "name": "hood",
+      "shape": "box",
+      "position_studs": [0, 2, 0],
+      "dims_studs": [2, 2, 6],
+      "color_code": 4
+    },
+    {
+      "name": "trunk",
+      "shape": "box",
+      "position_studs": [10, 2, 0],
+      "dims_studs": [2, 2, 6],
+      "color_code": 4
+    },
+    {
+      "name": "cabin",
+      "shape": "box",
+      "position_studs": [2, 2, 0],
+      "dims_studs": [8, 3, 6],
+      "color_code": 71
+    },
+    {
+      "name": "windshield",
+      "shape": "wedge",
+      "position_studs": [2, 4, 0],
+      "dims_studs": [2, 2, 6],
+      "taper_axis": "x",
+      "color_code": 72
+    },
+    {
+      "name": "rear_window",
+      "shape": "wedge",
+      "position_studs": [8, 4, 0],
+      "dims_studs": [2, 2, 6],
+      "taper_axis": "x",
+      "color_code": 72
+    }
+  ],
+  "special_parts": [
+    {
+      "name": "wheel_front_left",
+      "query": "small car wheel 18mm",
+      "attach_to": "chassis",
+      "offset_studs": [1, 0, -1],
+      "rotation_deg": 90,
+      "color_code": 0
+    },
+    {
+      "name": "wheel_front_right",
+      "query": "small car wheel 18mm",
+      "attach_to": "chassis",
+      "offset_studs": [1, 0, 6],
+      "rotation_deg": 90,
+      "color_code": 0
+    },
+    {
+      "name": "wheel_rear_left",
+      "query": "small car wheel 18mm",
+      "attach_to": "chassis",
+      "offset_studs": [9, 0, -1],
+      "rotation_deg": 90,
+      "color_code": 0
+    },
+    {
+      "name": "wheel_rear_right",
+      "query": "small car wheel 18mm",
+      "attach_to": "chassis",
+      "offset_studs": [9, 0, 6],
+      "rotation_deg": 90,
+      "color_code": 0
+    }
+  ]
+}

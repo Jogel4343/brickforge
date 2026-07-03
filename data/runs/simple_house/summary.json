@@ -1,0 +1,72 @@
+{
+  "prompt": "simple house",
+  "slug": "simple_house",
+  "model": "claude-sonnet-5",
+  "transport": "cli",
+  "timestamp": "2026-07-02T05:32:31Z",
+  "n_runs": 5,
+  "n_success": 5,
+  "failures_by_stage": {},
+  "runs": [
+    {
+      "run": 1,
+      "ok": true,
+      "stage_reached": "ldr",
+      "error": null,
+      "raw_file": "run_01_raw.txt",
+      "sub_assemblies": 21,
+      "bricks": 114,
+      "collisions": 0,
+      "ldr_file": "run_01.ldr",
+      "seconds": 49.2
+    },
+    {
+      "run": 2,
+      "ok": true,
+      "stage_reached": "ldr",
+      "error": null,
+      "raw_file": "run_02_raw.txt",
+      "sub_assemblies": 11,
+      "bricks": 72,
+      "collisions": 20,
+      "ldr_file": "run_02.ldr",
+      "seconds": 24.2
+    },
+    {
+      "run": 3,
+      "ok": true,
+      "stage_reached": "ldr",
+      "error": null,
+      "raw_file": "run_03_raw.txt",
+      "sub_assemblies": 10,
+      "bricks": 62,
+      "collisions": 20,
+      "ldr_file": "run_03.ldr",
+      "seconds": 25.4
+    },
+    {
+      "run": 4,
+      "ok": true,
+      "stage_reached": "ldr",
+      "error": null,
+      "raw_file": "run_04_raw.txt",
+      "sub_assemblies": 11,
+      "bricks": 54,
+      "collisions": 0,
+      "ldr_file": "run_04.ldr",
+      "seconds": 25.8
+    },
+    {
+      "run": 5,
+      "ok": true,
+      "stage_reached": "ldr",
+      "error": null,
+      "raw_file": "run_05_raw.txt",
+      "sub_assemblies": 10,
+      "bricks": 58,
+      "collisions": 1,
+      "ldr_file": "run_05.ldr",
+      "seconds": 18.9
+    }
+  ]
+}

@@ -1,0 +1,262 @@
+{
+  "name": "small_cottage",
+  "schema_version": "0.1",
+  "sub_assemblies": [
+    {
+      "name": "wall_north_left",
+      "shape": "box",
+      "position_studs": [
+        0,
+        0,
+        0
+      ],
+      "dims_studs": [
+        4,
+        6,
+        1
+      ],
+      "color_code": 19
+    },
+    {
+      "name": "wall_north_right",
+      "shape": "box",
+      "position_studs": [
+        6,
+        0,
+        0
+      ],
+      "dims_studs": [
+        4,
+        6,
+        1
+      ],
+      "color_code": 19
+    },
+    {
+      "name": "wall_north_sill",
+      "shape": "box",
+      "position_studs": [
+        4,
+        0,
+        0
+      ],
+      "dims_studs": [
+        2,
+        2,
+        1
+      ],
+      "color_code": 19
+    },
+    {
+      "name": "window_north",
+      "shape": "box",
+      "position_studs": [
+        4,
+        2,
+        0
+      ],
+      "dims_studs": [
+        2,
+        2,
+        1
+      ],
+      "color_code": 1
+    },
+    {
+      "name": "wall_north_top",
+      "shape": "box",
+      "position_studs": [
+        4,
+        4,
+        0
+      ],
+      "dims_studs": [
+        2,
+        2,
+        1
+      ],
+      "color_code": 19
+    },
+    {
+      "name": "wall_south_left",
+      "shape": "box",
+      "position_studs": [
+        0,
+        0,
+        7
+      ],
+      "dims_studs": [
+        4,
+        6,
+        1
+      ],
+      "color_code": 19
+    },
+    {
+      "name": "wall_south_right",
+      "shape": "box",
+      "position_studs": [
+        6,
+        0,
+        7
+      ],
+      "dims_studs": [
+        4,
+        6,
+        1
+      ],
+      "color_code": 19
+    },
+    {
+      "name": "door_front",
+      "shape": "box",
+      "position_studs": [
+        4,
+        0,
+        7
+      ],
+      "dims_studs": [
+        2,
+        4,
+        1
+      ],
+      "color_code": 70
+    },
+    {
+      "name": "wall_south_top",
+      "shape": "box",
+      "position_studs": [
+        4,
+        4,
+        7
+      ],
+      "dims_studs": [
+        2,
+        2,
+        1
+      ],
+      "color_code": 19
+    },
+    {
+      "name": "wall_west_front",
+      "shape": "box",
+      "position_studs": [
+        0,
+        0,
+        1
+      ],
+      "dims_studs": [
+        1,
+        6,
+        2
+      ],
+      "color_code": 19
+    },
+    {
+      "name": "wall_west_sill",
+      "shape": "box",
+      "position_studs": [
+        0,
+        0,
+        3
+      ],
+      "dims_studs": [
+        1,
+        2,
+        2
+      ],
+      "color_code": 19
+    },
+    {
+      "name": "window_west",
+      "shape": "box",
+      "position_studs": [
+        0,
+        2,
+        3
+      ],
+      "dims_studs": [
+        1,
+        2,
+        2
+      ],
+      "color_code": 1
+    },
+    {
+      "name": "wall_west_top",
+      "shape": "box",
+      "position_studs": [
+        0,
+        4,
+        3
+      ],
+      "dims_studs": [
+        1,
+        2,
+        2
+      ],
+      "color_code": 19
+    },
+    {
+      "name": "wall_west_back",
+      "shape": "box",
+      "position_studs": [
+        0,
+        0,
+        5
+      ],
+      "dims_studs": [
+        1,
+        6,
+        2
+      ],
+      "color_code": 19
+    },
+    {
+      "name": "wall_east",
+      "shape": "box",
+      "position_studs": [
+        9,
+        0,
+        1
+      ],
+      "dims_studs": [
+        1,
+        6,
+        6
+      ],
+      "color_code": 19
+    },
+    {
+      "name": "roof_gable",
+      "shape": "wedge",
+      "position_studs": [
+        0,
+        6,
+        0
+      ],
+      "dims_studs": [
+        10,
+        4,
+        8
+      ],
+      "taper_axis": "z",
+      "color_code": 4
+    },
+    {
+      "name": "chimney",
+      "shape": "box",
+      "position_studs": [
+        7,
+        6,
+        3
+      ],
+      "dims_studs": [
+        1,
+        6,
+        1
+      ],
+      "color_code": 72
+    }
+  ]
+}

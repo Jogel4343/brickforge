@@ -1,0 +1,163 @@
+{
+  "name": "small_boat_tapered_hull",
+  "schema_version": "0.1",
+  "sub_assemblies": [
+    {
+      "name": "hull_bottom",
+      "shape": "tapered_slab",
+      "position_studs": [
+        0,
+        0,
+        0
+      ],
+      "dims_studs": [
+        6,
+        1,
+        16
+      ],
+      "taper_axis": "z",
+      "taper_to_studs": 2,
+      "color_code": 70
+    },
+    {
+      "name": "hull_side_left",
+      "shape": "tapered_slab",
+      "position_studs": [
+        0,
+        1,
+        0
+      ],
+      "dims_studs": [
+        1,
+        2,
+        16
+      ],
+      "taper_axis": "z",
+      "taper_to_studs": 1,
+      "color_code": 70
+    },
+    {
+      "name": "hull_side_right",
+      "shape": "tapered_slab",
+      "position_studs": [
+        5,
+        1,
+        0
+      ],
+      "dims_studs": [
+        1,
+        2,
+        16
+      ],
+      "taper_axis": "z",
+      "taper_to_studs": 1,
+      "color_code": 70
+    },
+    {
+      "name": "transom_stern",
+      "shape": "box",
+      "position_studs": [
+        0,
+        1,
+        0
+      ],
+      "dims_studs": [
+        6,
+        2,
+        1
+      ],
+      "color_code": 70
+    },
+    {
+      "name": "bow_wall",
+      "shape": "box",
+      "position_studs": [
+        2,
+        1,
+        15
+      ],
+      "dims_studs": [
+        2,
+        2,
+        1
+      ],
+      "color_code": 70
+    },
+    {
+      "name": "deck_stern",
+      "shape": "box",
+      "position_studs": [
+        0,
+        3,
+        0
+      ],
+      "dims_studs": [
+        6,
+        1,
+        3
+      ],
+      "color_code": 15
+    },
+    {
+      "name": "seat_mid",
+      "shape": "box",
+      "position_studs": [
+        1,
+        3,
+        6
+      ],
+      "dims_studs": [
+        4,
+        1,
+        2
+      ],
+      "color_code": 19
+    },
+    {
+      "name": "deck_bow",
+      "shape": "box",
+      "position_studs": [
+        1,
+        3,
+        11
+      ],
+      "dims_studs": [
+        4,
+        1,
+        4
+      ],
+      "color_code": 15
+    },
+    {
+      "name": "mast",
+      "shape": "box",
+      "position_studs": [
+        3,
+        4,
+        7
+      ],
+      "dims_studs": [
+        1,
+        10,
+        1
+      ],
+      "color_code": 15
+    },
+    {
+      "name": "sail",
+      "shape": "wedge",
+      "position_studs": [
+        1,
+        5,
+        7
+      ],
+      "dims_studs": [
+        4,
+        9,
+        1
+      ],
+      "taper_axis": "x",
+      "color_code": 1
+    }
+  ]
+}

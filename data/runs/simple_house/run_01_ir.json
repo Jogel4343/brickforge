@@ -1,0 +1,321 @@
+{
+  "name": "simple_house",
+  "schema_version": "0.1",
+  "sub_assemblies": [
+    {
+      "name": "left_wall_front",
+      "shape": "box",
+      "position_studs": [
+        0,
+        0,
+        0
+      ],
+      "dims_studs": [
+        1,
+        6,
+        3
+      ],
+      "color_code": 71
+    },
+    {
+      "name": "left_wall_sill",
+      "shape": "box",
+      "position_studs": [
+        0,
+        0,
+        3
+      ],
+      "dims_studs": [
+        1,
+        2,
+        2
+      ],
+      "color_code": 71
+    },
+    {
+      "name": "left_wall_lintel",
+      "shape": "box",
+      "position_studs": [
+        0,
+        4,
+        3
+      ],
+      "dims_studs": [
+        1,
+        2,
+        2
+      ],
+      "color_code": 71
+    },
+    {
+      "name": "left_window",
+      "shape": "box",
+      "position_studs": [
+        0,
+        2,
+        3
+      ],
+      "dims_studs": [
+        1,
+        2,
+        2
+      ],
+      "color_code": 1
+    },
+    {
+      "name": "left_wall_back",
+      "shape": "box",
+      "position_studs": [
+        0,
+        0,
+        5
+      ],
+      "dims_studs": [
+        1,
+        6,
+        3
+      ],
+      "color_code": 71
+    },
+    {
+      "name": "right_wall_front",
+      "shape": "box",
+      "position_studs": [
+        11,
+        0,
+        0
+      ],
+      "dims_studs": [
+        1,
+        6,
+        3
+      ],
+      "color_code": 71
+    },
+    {
+      "name": "right_wall_sill",
+      "shape": "box",
+      "position_studs": [
+        11,
+        0,
+        3
+      ],
+      "dims_studs": [
+        1,
+        2,
+        2
+      ],
+      "color_code": 71
+    },
+    {
+      "name": "right_wall_lintel",
+      "shape": "box",
+      "position_studs": [
+        11,
+        4,
+        3
+      ],
+      "dims_studs": [
+        1,
+        2,
+        2
+      ],
+      "color_code": 71
+    },
+    {
+      "name": "right_window",
+      "shape": "box",
+      "position_studs": [
+        11,
+        2,
+        3
+      ],
+      "dims_studs": [
+        1,
+        2,
+        2
+      ],
+      "color_code": 1
+    },
+    {
+      "name": "right_wall_back",
+      "shape": "box",
+      "position_studs": [
+        11,
+        0,
+        5
+      ],
+      "dims_studs": [
+        1,
+        6,
+        3
+      ],
+      "color_code": 71
+    },
+    {
+      "name": "front_wall_left",
+      "shape": "box",
+      "position_studs": [
+        1,
+        0,
+        0
+      ],
+      "dims_studs": [
+        4,
+        6,
+        1
+      ],
+      "color_code": 71
+    },
+    {
+      "name": "front_wall_right",
+      "shape": "box",
+      "position_studs": [
+        8,
+        0,
+        0
+      ],
+      "dims_studs": [
+        3,
+        6,
+        1
+      ],
+      "color_code": 71
+    },
+    {
+      "name": "front_door_lintel",
+      "shape": "box",
+      "position_studs": [
+        5,
+        4,
+        0
+      ],
+      "dims_studs": [
+        3,
+        2,
+        1
+      ],
+      "color_code": 71
+    },
+    {
+      "name": "front_door",
+      "shape": "box",
+      "position_studs": [
+        5,
+        0,
+        0
+      ],
+      "dims_studs": [
+        3,
+        4,
+        1
+      ],
+      "color_code": 19
+    },
+    {
+      "name": "back_wall_left",
+      "shape": "box",
+      "position_studs": [
+        1,
+        0,
+        7
+      ],
+      "dims_studs": [
+        4,
+        6,
+        1
+      ],
+      "color_code": 71
+    },
+    {
+      "name": "back_wall_right",
+      "shape": "box",
+      "position_studs": [
+        7,
+        0,
+        7
+      ],
+      "dims_studs": [
+        4,
+        6,
+        1
+      ],
+      "color_code": 71
+    },
+    {
+      "name": "back_wall_sill",
+      "shape": "box",
+      "position_studs": [
+        5,
+        0,
+        7
+      ],
+      "dims_studs": [
+        2,
+        2,
+        1
+      ],
+      "color_code": 71
+    },
+    {
+      "name": "back_wall_lintel",
+      "shape": "box",
+      "position_studs": [
+        5,
+        4,
+        7
+      ],
+      "dims_studs": [
+        2,
+        2,
+        1
+      ],
+      "color_code": 71
+    },
+    {
+      "name": "back_window",
+      "shape": "box",
+      "position_studs": [
+        5,
+        2,
+        7
+      ],
+      "dims_studs": [
+        2,
+        2,
+        1
+      ],
+      "color_code": 1
+    },
+    {
+      "name": "roof",
+      "shape": "cone",
+      "position_studs": [
+        0,
+        6,
+        0
+      ],
+      "dims_studs": [
+        12,
+        4,
+        8
+      ],
+      "color_code": 4
+    },
+    {
+      "name": "chimney",
+      "shape": "box",
+      "position_studs": [
+        2,
+        10,
+        1
+      ],
+      "dims_studs": [
+        1,
+        4,
+        1
+      ],
+      "color_code": 70
+    }
+  ]
+}
