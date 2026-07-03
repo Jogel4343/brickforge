@@ -3,9 +3,9 @@
   "slug": "medieval_tower",
   "model": "claude-sonnet-5",
   "transport": "cli",
-  "timestamp": "2026-07-02T03:38:05Z",
-  "n_runs": 10,
-  "n_success": 10,
+  "timestamp": "2026-07-02T05:47:23Z",
+  "n_runs": 3,
+  "n_success": 3,
   "failures_by_stage": {},
   "runs": [
     {
@@ -14,11 +14,11 @@
       "stage_reached": "ldr",
       "error": null,
       "raw_file": "run_01_raw.txt",
-      "sub_assemblies": 12,
-      "bricks": 284,
+      "sub_assemblies": 15,
+      "bricks": 131,
       "collisions": 0,
       "ldr_file": "run_01.ldr",
-      "seconds": 29.5
+      "seconds": 30.6
     },
     {
       "run": 2,
@@ -26,11 +26,11 @@
       "stage_reached": "ldr",
       "error": null,
       "raw_file": "run_02_raw.txt",
-      "sub_assemblies": 9,
-      "bricks": 241,
+      "sub_assemblies": 26,
+      "bricks": 169,
       "collisions": 0,
       "ldr_file": "run_02.ldr",
-      "seconds": 10.4
+      "seconds": 47.0
     },
     {
       "run": 3,
@@ -38,95 +38,11 @@
       "stage_reached": "ldr",
       "error": null,
       "raw_file": "run_03_raw.txt",
-      "sub_assemblies": 11,
-      "bricks": 257,
-      "collisions": 8,
+      "sub_assemblies": 22,
+      "bricks": 152,
+      "collisions": 0,
       "ldr_file": "run_03.ldr",
-      "seconds": 11.8
-    },
-    {
-      "run": 4,
-      "ok": true,
-      "stage_reached": "ldr",
-      "error": null,
-      "raw_file": "run_04_raw.txt",
-      "sub_assemblies": 10,
-      "bricks": 255,
-      "collisions": 8,
-      "ldr_file": "run_04.ldr",
-      "seconds": 10.3
-    },
-    {
-      "run": 5,
-      "ok": true,
-      "stage_reached": "ldr",
-      "error": null,
-      "raw_file": "run_05_raw.txt",
-      "sub_assemblies": 11,
-      "bricks": 324,
-      "collisions": 8,
-      "ldr_file": "run_05.ldr",
-      "seconds": 11.9
-    },
-    {
-      "run": 6,
-      "ok": true,
-      "stage_reached": "ldr",
-      "error": null,
-      "raw_file": "run_06_raw.txt",
-      "sub_assemblies": 8,
-      "bricks": 394,
-      "collisions": 80,
-      "ldr_file": "run_06.ldr",
-      "seconds": 8.6
-    },
-    {
-      "run": 7,
-      "ok": true,
-      "stage_reached": "ldr",
-      "error": null,
-      "raw_file": "run_07_raw.txt",
-      "sub_assemblies": 9,
-      "bricks": 251,
-      "collisions": 0,
-      "ldr_file": "run_07.ldr",
-      "seconds": 10.2
-    },
-    {
-      "run": 8,
-      "ok": true,
-      "stage_reached": "ldr",
-      "error": null,
-      "raw_file": "run_08_raw.txt",
-      "sub_assemblies": 13,
-      "bricks": 335,
-      "collisions": 12,
-      "ldr_file": "run_08.ldr",
-      "seconds": 10.6
-    },
-    {
-      "run": 9,
-      "ok": true,
-      "stage_reached": "ldr",
-      "error": null,
-      "raw_file": "run_09_raw.txt",
-      "sub_assemblies": 12,
-      "bricks": 253,
-      "collisions": 0,
-      "ldr_file": "run_09.ldr",
-      "seconds": 32.5
-    },
-    {
-      "run": 10,
-      "ok": true,
-      "stage_reached": "ldr",
-      "error": null,
-      "raw_file": "run_10_raw.txt",
-      "sub_assemblies": 10,
-      "bricks": 245,
-      "collisions": 8,
-      "ldr_file": "run_10.ldr",
-      "seconds": 10.2
+      "seconds": 48.6
     }
   ]
 }

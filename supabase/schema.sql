@@ -50,9 +50,6 @@ create table if not exists public.designs (
   user_id uuid references public.profiles(id) on delete set null,
   prompt text not null,
   status design_status not null default 'queued',
-  -- Generation params
-  grid_size int default 20,                     -- voxel grid; chunked stitching for >20
-  chunked boolean default false,
   -- Outputs (Supabase Storage paths)
   ldr_path text,                                -- canonical .ldr
   preview_path text,                            -- .png render
@@ -76,10 +73,9 @@ create table if not exists public.generations (
   id uuid primary key default gen_random_uuid(),
   design_id uuid references public.designs(id) on delete cascade,
   attempt int not null,
-  worker_run_id text,                           -- Modal call id
+  worker_run_id text,                           -- Modal call id (once the pipeline runs there; null for local subprocess runs)
   gpu_seconds numeric,
   cost_cents numeric,
-  brick_rejections int,                         -- LegoGPT stability rejections
   regenerations int,
   error text,
   started_at timestamptz default now(),
@@ -130,7 +126,20 @@ create table if not exists public.purchases (
 );
 
 -- ============================================================
+-- Storage — bucket for generated .ldr files (roadmap #7 persistence slice).
+-- Public bucket: no auth yet, and a design's whole point is to be a
+-- shareable link the viewer can fetch directly by URL.
+-- ============================================================
+insert into storage.buckets (id, name, public)
+values ('designs', 'designs', true)
+on conflict (id) do nothing;
+
+-- ============================================================
 -- RLS — enable; specific policies added as routes are built.
+-- All current writes go through the service-role key (server-only), which
+-- bypasses RLS, so no INSERT/UPDATE policies exist yet. designs gets a
+-- public SELECT policy so /d/[id] pages are actually shareable without
+-- requiring the admin client on every read.
 -- ============================================================
 alter table public.profiles enable row level security;
 alter table public.designs enable row level security;
@@ -138,3 +147,6 @@ alter table public.generations enable row level security;
 alter table public.design_bricks enable row level security;
 alter table public.listings enable row level security;
 alter table public.purchases enable row level security;
+
+create policy "designs are publicly readable" on public.designs
+  for select using (true);

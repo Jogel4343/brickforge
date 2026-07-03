@@ -3,66 +3,164 @@
   "schema_version": "0.1",
   "sub_assemblies": [
     {
-      "name": "wall_north",
+      "name": "north_wall_lower",
       "shape": "box",
       "position_studs": [0, 0, 0],
-      "dims_studs": [8, 24, 1],
+      "dims_studs": [8, 10, 1],
       "color_code": 71
     },
     {
-      "name": "wall_south",
+      "name": "north_wall_window_left",
+      "shape": "box",
+      "position_studs": [0, 10, 0],
+      "dims_studs": [3, 4, 1],
+      "color_code": 71
+    },
+    {
+      "name": "north_wall_window_right",
+      "shape": "box",
+      "position_studs": [5, 10, 0],
+      "dims_studs": [3, 4, 1],
+      "color_code": 71
+    },
+    {
+      "name": "north_wall_upper",
+      "shape": "box",
+      "position_studs": [0, 14, 0],
+      "dims_studs": [8, 10, 1],
+      "color_code": 71
+    },
+    {
+      "name": "south_wall_left",
       "shape": "box",
       "position_studs": [0, 0, 7],
-      "dims_studs": [8, 24, 1],
+      "dims_studs": [3, 24, 1],
       "color_code": 71
     },
     {
-      "name": "wall_west",
+      "name": "south_wall_right",
+      "shape": "box",
+      "position_studs": [5, 0, 7],
+      "dims_studs": [3, 24, 1],
+      "color_code": 71
+    },
+    {
+      "name": "south_wall_above_door",
+      "shape": "box",
+      "position_studs": [3, 8, 7],
+      "dims_studs": [2, 16, 1],
+      "color_code": 71
+    },
+    {
+      "name": "west_wall_lower",
       "shape": "box",
       "position_studs": [0, 0, 1],
-      "dims_studs": [1, 24, 6],
+      "dims_studs": [1, 10, 6],
       "color_code": 71
     },
     {
-      "name": "wall_east",
+      "name": "west_wall_window_near",
+      "shape": "box",
+      "position_studs": [0, 10, 1],
+      "dims_studs": [1, 4, 2],
+      "color_code": 71
+    },
+    {
+      "name": "west_wall_window_far",
+      "shape": "box",
+      "position_studs": [0, 10, 5],
+      "dims_studs": [1, 4, 2],
+      "color_code": 71
+    },
+    {
+      "name": "west_wall_upper",
+      "shape": "box",
+      "position_studs": [0, 14, 1],
+      "dims_studs": [1, 10, 6],
+      "color_code": 71
+    },
+    {
+      "name": "east_wall_lower",
       "shape": "box",
       "position_studs": [7, 0, 1],
-      "dims_studs": [1, 24, 6],
+      "dims_studs": [1, 10, 6],
       "color_code": 71
     },
     {
-      "name": "door_frame",
+      "name": "east_wall_window_near",
       "shape": "box",
-      "position_studs": [3, 0, 0],
-      "dims_studs": [2, 4, 1],
-      "color_code": 70
+      "position_studs": [7, 10, 1],
+      "dims_studs": [1, 4, 2],
+      "color_code": 71
     },
     {
-      "name": "battlement_north",
+      "name": "east_wall_window_far",
+      "shape": "box",
+      "position_studs": [7, 10, 5],
+      "dims_studs": [1, 4, 2],
+      "color_code": 71
+    },
+    {
+      "name": "east_wall_upper",
+      "shape": "box",
+      "position_studs": [7, 14, 1],
+      "dims_studs": [1, 10, 6],
+      "color_code": 71
+    },
+    {
+      "name": "merlon_corner_nw",
       "shape": "box",
       "position_studs": [0, 24, 0],
-      "dims_studs": [8, 2, 1],
+      "dims_studs": [1, 2, 1],
       "color_code": 71
     },
     {
-      "name": "battlement_south",
+      "name": "merlon_corner_ne",
+      "shape": "box",
+      "position_studs": [7, 24, 0],
+      "dims_studs": [1, 2, 1],
+      "color_code": 71
+    },
+    {
+      "name": "merlon_corner_sw",
       "shape": "box",
       "position_studs": [0, 24, 7],
-      "dims_studs": [8, 2, 1],
+      "dims_studs": [1, 2, 1],
       "color_code": 71
     },
     {
-      "name": "battlement_west",
+      "name": "merlon_corner_se",
       "shape": "box",
-      "position_studs": [0, 24, 1],
-      "dims_studs": [1, 2, 6],
+      "position_studs": [7, 24, 7],
+      "dims_studs": [1, 2, 1],
       "color_code": 71
     },
     {
-      "name": "battlement_east",
+      "name": "merlon_mid_north",
       "shape": "box",
-      "position_studs": [7, 24, 1],
-      "dims_studs": [1, 2, 6],
+      "position_studs": [3, 24, 0],
+      "dims_studs": [2, 2, 1],
+      "color_code": 71
+    },
+    {
+      "name": "merlon_mid_south",
+      "shape": "box",
+      "position_studs": [3, 24, 7],
+      "dims_studs": [2, 2, 1],
+      "color_code": 71
+    },
+    {
+      "name": "merlon_mid_west",
+      "shape": "box",
+      "position_studs": [0, 24, 3],
+      "dims_studs": [1, 2, 2],
+      "color_code": 71
+    },
+    {
+      "name": "merlon_mid_east",
+      "shape": "box",
+      "position_studs": [7, 24, 3],
+      "dims_studs": [1, 2, 2],
       "color_code": 71
     },
     {

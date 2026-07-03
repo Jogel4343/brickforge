@@ -3,7 +3,7 @@
   "schema_version": "0.1",
   "sub_assemblies": [
     {
-      "name": "wall_north",
+      "name": "wall_front",
       "shape": "box",
       "position_studs": [
         0,
@@ -18,7 +18,7 @@
       "color_code": 15
     },
     {
-      "name": "wall_south",
+      "name": "wall_back",
       "shape": "box",
       "position_studs": [
         0,
@@ -33,7 +33,7 @@
       "color_code": 15
     },
     {
-      "name": "wall_west",
+      "name": "wall_left",
       "shape": "box",
       "position_studs": [
         0,
@@ -48,7 +48,7 @@
       "color_code": 15
     },
     {
-      "name": "wall_east",
+      "name": "wall_right",
       "shape": "box",
       "position_studs": [
         9,
@@ -63,7 +63,7 @@
       "color_code": 15
     },
     {
-      "name": "roof_pyramid",
+      "name": "roof",
       "shape": "cone",
       "position_studs": [
         0,
@@ -76,21 +76,6 @@
         8
       ],
       "color_code": 4
-    },
-    {
-      "name": "chimney",
-      "shape": "box",
-      "position_studs": [
-        7,
-        6,
-        5
-      ],
-      "dims_studs": [
-        2,
-        4,
-        2
-      ],
-      "color_code": 70
     }
   ]
 }

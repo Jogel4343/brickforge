@@ -3,7 +3,7 @@
   "schema_version": "0.1",
   "sub_assemblies": [
     {
-      "name": "wall_north_left",
+      "name": "wall_south_left",
       "shape": "box",
       "position_studs": [
         0,
@@ -12,13 +12,13 @@
       ],
       "dims_studs": [
         3,
-        24,
+        20,
         1
       ],
       "color_code": 71
     },
     {
-      "name": "wall_north_right",
+      "name": "wall_south_right",
       "shape": "box",
       "position_studs": [
         5,
@@ -27,13 +27,13 @@
       ],
       "dims_studs": [
         3,
-        24,
+        20,
         1
       ],
       "color_code": 71
     },
     {
-      "name": "wall_north_lintel",
+      "name": "door_lintel",
       "shape": "box",
       "position_studs": [
         3,
@@ -42,13 +42,13 @@
       ],
       "dims_studs": [
         2,
-        19,
+        15,
         1
       ],
       "color_code": 71
     },
     {
-      "name": "wall_south",
+      "name": "wall_north",
       "shape": "box",
       "position_studs": [
         0,
@@ -57,7 +57,7 @@
       ],
       "dims_studs": [
         8,
-        24,
+        20,
         1
       ],
       "color_code": 71
@@ -72,7 +72,7 @@
       ],
       "dims_studs": [
         1,
-        24,
+        20,
         6
       ],
       "color_code": 71
@@ -87,77 +87,137 @@
       ],
       "dims_studs": [
         1,
-        24,
+        20,
         6
       ],
       "color_code": 71
     },
     {
-      "name": "parapet_north",
+      "name": "merlon_n1",
       "shape": "box",
       "position_studs": [
-        0,
-        24,
-        0
-      ],
-      "dims_studs": [
-        8,
-        2,
-        1
-      ],
-      "color_code": 72
-    },
-    {
-      "name": "parapet_south",
-      "shape": "box",
-      "position_studs": [
-        0,
-        24,
+        1,
+        20,
         7
       ],
       "dims_studs": [
-        8,
+        2,
         2,
         1
       ],
-      "color_code": 72
+      "color_code": 71
     },
     {
-      "name": "parapet_west",
+      "name": "merlon_n2",
+      "shape": "box",
+      "position_studs": [
+        5,
+        20,
+        7
+      ],
+      "dims_studs": [
+        2,
+        2,
+        1
+      ],
+      "color_code": 71
+    },
+    {
+      "name": "merlon_s1",
+      "shape": "box",
+      "position_studs": [
+        1,
+        20,
+        0
+      ],
+      "dims_studs": [
+        2,
+        2,
+        1
+      ],
+      "color_code": 71
+    },
+    {
+      "name": "merlon_s2",
+      "shape": "box",
+      "position_studs": [
+        5,
+        20,
+        0
+      ],
+      "dims_studs": [
+        2,
+        2,
+        1
+      ],
+      "color_code": 71
+    },
+    {
+      "name": "merlon_w1",
       "shape": "box",
       "position_studs": [
         0,
-        24,
+        20,
         1
       ],
       "dims_studs": [
         1,
         2,
-        6
+        2
       ],
-      "color_code": 72
+      "color_code": 71
     },
     {
-      "name": "parapet_east",
+      "name": "merlon_w2",
+      "shape": "box",
+      "position_studs": [
+        0,
+        20,
+        5
+      ],
+      "dims_studs": [
+        1,
+        2,
+        2
+      ],
+      "color_code": 71
+    },
+    {
+      "name": "merlon_e1",
       "shape": "box",
       "position_studs": [
         7,
-        24,
+        20,
         1
       ],
       "dims_studs": [
         1,
         2,
-        6
+        2
       ],
-      "color_code": 72
+      "color_code": 71
+    },
+    {
+      "name": "merlon_e2",
+      "shape": "box",
+      "position_studs": [
+        7,
+        20,
+        5
+      ],
+      "dims_studs": [
+        1,
+        2,
+        2
+      ],
+      "color_code": 71
     },
     {
       "name": "roof_cone",
       "shape": "cone",
       "position_studs": [
         0,
-        26,
+        22,
         0
       ],
       "dims_studs": [
@@ -165,22 +225,7 @@
         6,
         8
       ],
-      "color_code": 4
-    },
-    {
-      "name": "spire_finial",
-      "shape": "box",
-      "position_studs": [
-        3,
-        32,
-        3
-      ],
-      "dims_studs": [
-        2,
-        2,
-        2
-      ],
-      "color_code": 14
+      "color_code": 72
     }
   ]
 }

@@ -3,7 +3,7 @@
   "schema_version": "0.1",
   "sub_assemblies": [
     {
-      "name": "plinth",
+      "name": "wall_north",
       "shape": "box",
       "position_studs": [
         0,
@@ -11,68 +11,23 @@
         0
       ],
       "dims_studs": [
-        10,
-        2,
-        10
+        8,
+        24,
+        1
       ],
-      "color_code": 72
+      "color_code": 71
     },
     {
-      "name": "wall_north",
+      "name": "wall_south",
       "shape": "box",
       "position_studs": [
-        1,
-        2,
-        1
+        0,
+        0,
+        7
       ],
       "dims_studs": [
         8,
-        20,
-        1
-      ],
-      "color_code": 71
-    },
-    {
-      "name": "wall_south_left",
-      "shape": "box",
-      "position_studs": [
-        1,
-        2,
-        8
-      ],
-      "dims_studs": [
-        3,
-        20,
-        1
-      ],
-      "color_code": 71
-    },
-    {
-      "name": "wall_south_right",
-      "shape": "box",
-      "position_studs": [
-        6,
-        2,
-        8
-      ],
-      "dims_studs": [
-        3,
-        20,
-        1
-      ],
-      "color_code": 71
-    },
-    {
-      "name": "wall_south_lintel",
-      "shape": "box",
-      "position_studs": [
-        4,
-        8,
-        8
-      ],
-      "dims_studs": [
-        2,
-        12,
+        24,
         1
       ],
       "color_code": 71
@@ -81,13 +36,13 @@
       "name": "wall_west",
       "shape": "box",
       "position_studs": [
-        1,
-        2,
-        2
+        0,
+        0,
+        1
       ],
       "dims_studs": [
         1,
-        20,
+        24,
         6
       ],
       "color_code": 71
@@ -96,74 +51,14 @@
       "name": "wall_east",
       "shape": "box",
       "position_studs": [
-        8,
-        2,
-        2
+        7,
+        0,
+        1
       ],
       "dims_studs": [
         1,
-        20,
+        24,
         6
-      ],
-      "color_code": 71
-    },
-    {
-      "name": "merlon_nw",
-      "shape": "box",
-      "position_studs": [
-        1,
-        22,
-        1
-      ],
-      "dims_studs": [
-        1,
-        2,
-        1
-      ],
-      "color_code": 71
-    },
-    {
-      "name": "merlon_ne",
-      "shape": "box",
-      "position_studs": [
-        8,
-        22,
-        1
-      ],
-      "dims_studs": [
-        1,
-        2,
-        1
-      ],
-      "color_code": 71
-    },
-    {
-      "name": "merlon_sw",
-      "shape": "box",
-      "position_studs": [
-        1,
-        22,
-        8
-      ],
-      "dims_studs": [
-        1,
-        2,
-        1
-      ],
-      "color_code": 71
-    },
-    {
-      "name": "merlon_se",
-      "shape": "box",
-      "position_studs": [
-        8,
-        22,
-        8
-      ],
-      "dims_studs": [
-        1,
-        2,
-        1
       ],
       "color_code": 71
     },
@@ -171,16 +66,16 @@
       "name": "roof_cone",
       "shape": "cone",
       "position_studs": [
-        1,
+        0,
         24,
-        1
+        0
       ],
       "dims_studs": [
         8,
         6,
         8
       ],
-      "color_code": 4
+      "color_code": 72
     }
   ]
 }

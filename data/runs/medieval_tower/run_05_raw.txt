@@ -1,85 +1,146 @@
-```json
 {
   "name": "medieval_tower",
   "schema_version": "0.1",
   "sub_assemblies": [
     {
-      "name": "base_plinth",
+      "name": "wall_south_left",
       "shape": "box",
       "position_studs": [0, 0, 0],
-      "dims_studs": [10, 2, 10],
-      "color_code": 72
-    },
-    {
-      "name": "wall_north",
-      "shape": "box",
-      "position_studs": [0, 2, 0],
-      "dims_studs": [10, 22, 1],
+      "dims_studs": [3, 20, 1],
       "color_code": 71
     },
     {
-      "name": "wall_south",
+      "name": "wall_south_right",
       "shape": "box",
-      "position_studs": [0, 2, 9],
-      "dims_studs": [10, 22, 1],
+      "position_studs": [5, 0, 0],
+      "dims_studs": [3, 20, 1],
       "color_code": 71
+    },
+    {
+      "name": "wall_south_lintel",
+      "shape": "box",
+      "position_studs": [3, 4, 0],
+      "dims_studs": [2, 16, 1],
+      "color_code": 71
+    },
+    {
+      "name": "door_leaf",
+      "shape": "box",
+      "position_studs": [3, 0, 0],
+      "dims_studs": [2, 4, 1],
+      "color_code": 70
     },
     {
       "name": "wall_west",
       "shape": "box",
-      "position_studs": [0, 2, 1],
-      "dims_studs": [1, 22, 8],
+      "position_studs": [0, 0, 1],
+      "dims_studs": [1, 20, 6],
       "color_code": 71
     },
     {
       "name": "wall_east",
       "shape": "box",
-      "position_studs": [9, 2, 1],
-      "dims_studs": [1, 22, 8],
+      "position_studs": [7, 0, 1],
+      "dims_studs": [1, 20, 6],
       "color_code": 71
     },
     {
-      "name": "door_frame",
+      "name": "wall_north_bottom",
       "shape": "box",
-      "position_studs": [4, 2, 0],
+      "position_studs": [0, 0, 7],
+      "dims_studs": [8, 8, 1],
+      "color_code": 71
+    },
+    {
+      "name": "wall_north_left_mid",
+      "shape": "box",
+      "position_studs": [0, 8, 7],
+      "dims_studs": [3, 4, 1],
+      "color_code": 71
+    },
+    {
+      "name": "wall_north_right_mid",
+      "shape": "box",
+      "position_studs": [5, 8, 7],
+      "dims_studs": [3, 4, 1],
+      "color_code": 71
+    },
+    {
+      "name": "window_glass_north",
+      "shape": "box",
+      "position_studs": [3, 8, 7],
       "dims_studs": [2, 4, 1],
-      "color_code": 70
+      "color_code": 1
     },
     {
-      "name": "battlement_north",
+      "name": "wall_north_top",
       "shape": "box",
-      "position_studs": [0, 24, 0],
-      "dims_studs": [10, 2, 1],
+      "position_studs": [0, 12, 7],
+      "dims_studs": [8, 8, 1],
       "color_code": 71
     },
     {
-      "name": "battlement_south",
+      "name": "merlon_sw",
       "shape": "box",
-      "position_studs": [0, 24, 9],
-      "dims_studs": [10, 2, 1],
+      "position_studs": [0, 20, 0],
+      "dims_studs": [1, 2, 1],
       "color_code": 71
     },
     {
-      "name": "battlement_west",
+      "name": "merlon_se",
       "shape": "box",
-      "position_studs": [0, 24, 1],
-      "dims_studs": [1, 2, 8],
+      "position_studs": [7, 20, 0],
+      "dims_studs": [1, 2, 1],
       "color_code": 71
     },
     {
-      "name": "battlement_east",
+      "name": "merlon_nw",
       "shape": "box",
-      "position_studs": [9, 24, 1],
-      "dims_studs": [1, 2, 8],
+      "position_studs": [0, 20, 7],
+      "dims_studs": [1, 2, 1],
+      "color_code": 71
+    },
+    {
+      "name": "merlon_ne",
+      "shape": "box",
+      "position_studs": [7, 20, 7],
+      "dims_studs": [1, 2, 1],
+      "color_code": 71
+    },
+    {
+      "name": "merlon_south_mid",
+      "shape": "box",
+      "position_studs": [3, 20, 0],
+      "dims_studs": [2, 2, 1],
+      "color_code": 71
+    },
+    {
+      "name": "merlon_north_mid",
+      "shape": "box",
+      "position_studs": [3, 20, 7],
+      "dims_studs": [2, 2, 1],
+      "color_code": 71
+    },
+    {
+      "name": "merlon_west_mid",
+      "shape": "box",
+      "position_studs": [0, 20, 3],
+      "dims_studs": [1, 2, 2],
+      "color_code": 71
+    },
+    {
+      "name": "merlon_east_mid",
+      "shape": "box",
+      "position_studs": [7, 20, 3],
+      "dims_studs": [1, 2, 2],
       "color_code": 71
     },
     {
       "name": "roof_cone",
       "shape": "cone",
-      "position_studs": [0, 26, 0],
-      "dims_studs": [10, 8, 10],
-      "color_code": 4
+      "position_studs": [0, 22, 0],
+      "dims_studs": [8, 6, 8],
+      "color_code": 72
     }
   ]
 }
-```

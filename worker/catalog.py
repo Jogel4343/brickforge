@@ -210,6 +210,8 @@ def _parse_parts_from_dir(parts_dir: Path, official: bool = True) -> list[Part]:
 # All the places we might find the LDraw library. Different zip package
 # layouts and different Docker install paths land it in different places, so
 # we try a broad list rather than guess.
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+
 _LDRAW_ROOT_CANDIDATES = [
     Path("/root/ldraw"),                 # Modal image, direct unzip
     Path("/root/ldraw/ldraw"),           # Modal image, nested-in-zip layout
@@ -217,6 +219,7 @@ _LDRAW_ROOT_CANDIDATES = [
     Path("/opt/legogpt/ldraw"),          # in case LegoGPT pulled it into its dir
     Path.home() / "ldraw",
     Path.home() / "ldraw" / "ldraw",
+    _REPO_ROOT / "public" / "ldraw",     # local dev: the copy the Next.js viewer uses
 ]
 
 

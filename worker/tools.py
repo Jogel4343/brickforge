@@ -200,6 +200,45 @@ def _score(
 
 
 # ---------------------------------------------------------------------------
+# Curated intent aliases — bypass fuzzy ranking entirely for the specific
+# intents CONFIRMED to rank wrong against the real catalog, via real
+# Claude-generated special_parts queries in the wired pipeline (not
+# hypothetical ones). See docs/SPECIAL_PARTS_TODO.md for the failing
+# queries this fixes. Bounded on purpose: add an entry only once a real
+# query is observed to resolve wrong, not speculatively.
+# ---------------------------------------------------------------------------
+
+_CURATED_INTENT_ALIASES: dict[str, list[str]] = {
+    # "small wheel 8mm with tire" / "small car wheel 18mm" -> fuzzy ranking
+    # returned a Boat Ship's Wheel / Car Steering Wheel prop, not a vehicle
+    # wheel. Every observed real query used the bare token "wheel".
+    "wheel": ["3482c01"],   # Wheel Rim 8 x 17.5 with Axlehole with Black Tyre 7/56 x 17 Offset Tread
+    # "small round headlight" -> fuzzy ranking returned a Roadsign.
+    "headlight": ["4070"],  # Brick 1 x 1 with Headlight
+}
+
+
+def _curated_alias_hits(q_tokens: set[str], cat: Catalog) -> list[PartHit] | None:
+    """Return curated hits if a query token matches a known-bad-ranking
+    intent, else None so the caller falls through to fuzzy ranking."""
+    for intent, part_ids in _CURATED_INTENT_ALIASES.items():
+        if intent not in q_tokens:
+            continue
+        hits = []
+        for pid in part_ids:
+            p = cat.parts.get(pid)
+            if p is None:
+                continue  # curated id not present in this catalog build
+            hits.append(PartHit(
+                ldraw_id=p.ldraw_id, name=p.name, category=p.category,
+                width_studs=p.width_studs, length_studs=p.length_studs, score=1.0,
+            ))
+        if hits:
+            return hits
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Tool: lookup_part
 # ---------------------------------------------------------------------------
 
@@ -217,6 +256,10 @@ def lookup_part(
     as strong filters, and heavily penalizes decorated/sticker variants,
     Duplo/Quatro product lines, and specialized (hinge/clip/corner) variants
     so the LLM gets plain functional System parts by default.
+
+    Checks the curated intent-alias table first (see above) — for the
+    handful of intents confirmed to rank wrong, this returns a verified
+    part before the fuzzy path ever runs.
     """
     cat = catalog or load_catalog()
 
@@ -230,6 +273,10 @@ def lookup_part(
     # Tokenize the query, but drop pure-numeric tokens and 'x' — they're
     # already handled as dimensions and just add noise to token matching.
     q_tokens = {t for t in _tokenize(query) if not t.isdigit() and t != "x"}
+
+    curated = _curated_alias_hits(q_tokens, cat)
+    if curated is not None:
+        return curated[:limit]
 
     # Initial candidate set: any part whose name has at least one query token.
     candidate_ids: set[str] = set()

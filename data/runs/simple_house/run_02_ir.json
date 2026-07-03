@@ -3,7 +3,22 @@
   "schema_version": "0.1",
   "sub_assemblies": [
     {
-      "name": "floor",
+      "name": "wall_back",
+      "shape": "box",
+      "position_studs": [
+        0,
+        0,
+        9
+      ],
+      "dims_studs": [
+        12,
+        6,
+        1
+      ],
+      "color_code": 15
+    },
+    {
+      "name": "wall_left",
       "shape": "box",
       "position_studs": [
         0,
@@ -11,71 +26,116 @@
         0
       ],
       "dims_studs": [
-        10,
         1,
-        8
+        6,
+        10
       ],
-      "color_code": 71
+      "color_code": 15
     },
     {
-      "name": "wall_north",
+      "name": "wall_right",
       "shape": "box",
       "position_studs": [
+        11,
         0,
-        1,
         0
       ],
       "dims_studs": [
-        10,
-        5,
+        1,
+        6,
+        10
+      ],
+      "color_code": 15
+    },
+    {
+      "name": "wall_front_left",
+      "shape": "box",
+      "position_studs": [
+        1,
+        0,
+        0
+      ],
+      "dims_studs": [
+        3,
+        6,
         1
       ],
       "color_code": 15
     },
     {
-      "name": "wall_south",
+      "name": "wall_front_right",
+      "shape": "box",
+      "position_studs": [
+        8,
+        0,
+        0
+      ],
+      "dims_studs": [
+        3,
+        6,
+        1
+      ],
+      "color_code": 15
+    },
+    {
+      "name": "lintel_above_door",
+      "shape": "box",
+      "position_studs": [
+        4,
+        4,
+        0
+      ],
+      "dims_studs": [
+        3,
+        2,
+        1
+      ],
+      "color_code": 15
+    },
+    {
+      "name": "door_panel",
+      "shape": "box",
+      "position_studs": [
+        4,
+        0,
+        0
+      ],
+      "dims_studs": [
+        3,
+        4,
+        1
+      ],
+      "color_code": 70
+    },
+    {
+      "name": "window_left",
       "shape": "box",
       "position_studs": [
         0,
-        1,
-        7
+        2,
+        3
       ],
       "dims_studs": [
-        10,
-        5,
-        1
+        1,
+        2,
+        2
       ],
-      "color_code": 15
+      "color_code": 1
     },
     {
-      "name": "wall_west",
+      "name": "window_right",
       "shape": "box",
       "position_studs": [
-        0,
-        1,
-        1
+        11,
+        2,
+        3
       ],
       "dims_studs": [
         1,
-        5,
-        6
+        2,
+        2
       ],
-      "color_code": 15
-    },
-    {
-      "name": "wall_east",
-      "shape": "box",
-      "position_studs": [
-        9,
-        1,
-        1
-      ],
-      "dims_studs": [
-        1,
-        5,
-        6
-      ],
-      "color_code": 15
+      "color_code": 1
     },
     {
       "name": "roof",
@@ -86,11 +146,26 @@
         0
       ],
       "dims_studs": [
-        10,
-        4,
-        8
+        12,
+        5,
+        10
       ],
       "color_code": 4
+    },
+    {
+      "name": "chimney",
+      "shape": "box",
+      "position_studs": [
+        5,
+        11,
+        4
+      ],
+      "dims_studs": [
+        2,
+        3,
+        2
+      ],
+      "color_code": 71
     }
   ]
 }

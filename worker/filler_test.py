@@ -14,8 +14,8 @@ import json
 import sys
 from pathlib import Path
 
-from worker.filler import fill_ir, fill_box, fill_cone, BRICKS
-from worker.ir_schema import IR, SubAssembly
+from worker.filler import fill_ir, fill_box, fill_cone, fill_wedge, fill_tapered_slab, BRICKS
+from worker.ir_schema import IR, SubAssembly, SpecialPart
 from worker.ldr_writer import (
     PlacedBrick,
     brick_to_ldr_line,
@@ -91,6 +91,106 @@ def test_ir_schema_rejects_bad_input() -> None:
     _assert(True, "rejects duplicate sub-assembly names")
 
 
+def test_ir_schema_rejects_bad_taper_fields() -> None:
+    print("test_ir_schema_rejects_bad_taper_fields")
+    try:
+        SubAssembly("bad", "tapered_slab", [0, 0, 0], [8, 1, 5], taper_axis="z")
+        raise AssertionError("expected ValueError for missing taper_to_studs")
+    except ValueError:
+        pass
+    _assert(True, "rejects tapered_slab without taper_to_studs")
+
+    try:
+        SubAssembly("bad", "tapered_slab", [0, 0, 0], [8, 1, 5], taper_axis="z", taper_to_studs=20)
+        raise AssertionError("expected ValueError for taper_to_studs exceeding the tapered dimension")
+    except ValueError:
+        pass
+    _assert(True, "rejects taper_to_studs larger than the tapered dimension")
+
+    try:
+        SubAssembly("bad", "wedge", [0, 0, 0], [4, 2, 3], taper_axis="y")
+        raise AssertionError("expected ValueError for invalid taper_axis")
+    except ValueError:
+        pass
+    _assert(True, "rejects invalid taper_axis")
+
+
+def test_ir_schema_rejects_bad_special_parts() -> None:
+    print("test_ir_schema_rejects_bad_special_parts")
+
+    # attach_to must name a real sub_assembly
+    try:
+        IR(name="bad", sub_assemblies=[SubAssembly("chassis", "box", [0, 0, 0], [4, 1, 8])],
+           special_parts=[SpecialPart("wheel", "wheel 30mm", attach_to="nonexistent")])
+        raise AssertionError("expected ValueError for unknown attach_to")
+    except ValueError:
+        pass
+    _assert(True, "rejects special_part with unknown attach_to")
+
+    # names share one namespace with sub_assemblies
+    try:
+        IR(name="bad", sub_assemblies=[SubAssembly("chassis", "box", [0, 0, 0], [4, 1, 8])],
+           special_parts=[SpecialPart("chassis", "wheel 30mm", attach_to="chassis")])
+        raise AssertionError("expected ValueError for name collision with a sub_assembly")
+    except ValueError:
+        pass
+    _assert(True, "rejects special_part name colliding with a sub_assembly name")
+
+    # rotation_deg must be 0 or 90
+    try:
+        SpecialPart("wheel", "wheel 30mm", attach_to="chassis", rotation_deg=45)
+        raise AssertionError("expected ValueError for rotation_deg=45")
+    except ValueError:
+        pass
+    _assert(True, "rejects rotation_deg other than 0/90")
+
+    # offset_studs must be length 3
+    try:
+        SpecialPart("wheel", "wheel 30mm", attach_to="chassis", offset_studs=[0, 0])
+        raise AssertionError("expected ValueError for short offset_studs")
+    except ValueError:
+        pass
+    _assert(True, "rejects offset_studs with wrong length")
+
+
+def test_ir_normalize_positions_shifts_special_part_anchor() -> None:
+    print("test_ir_normalize_positions_shifts_special_part_anchor")
+    ir = IR(
+        name="car",
+        sub_assemblies=[SubAssembly("chassis", "box", [-2, 0, 0], [4, 1, 8], 4)],
+        special_parts=[SpecialPart("wheel", "wheel 30mm", attach_to="chassis", offset_studs=[0, 0, 1])],
+    )
+    ir.normalize_positions()
+    # chassis shifted from x=-2 to x=0; the special part's offset is untouched
+    # because it's relative to attach_to's (now-shifted) position, so its
+    # effective world position shifts consistently along with everything else.
+    _assert(ir.sub_assemblies[0].position_studs == [0, 0, 0], "chassis shifted to non-negative x")
+    _assert(ir.special_parts[0].offset_studs == [0, 0, 1], "special part offset is untouched (relative, not absolute)")
+
+
+def test_ir_normalize_positions_shifts_negative_axis() -> None:
+    print("test_ir_normalize_positions_shifts_negative_axis")
+    ir = IR(
+        name="plane",
+        sub_assemblies=[
+            SubAssembly("fuselage", "box", [0, 0, 0], [2, 2, 6], 4),
+            SubAssembly("wing_left", "box", [-5, 2, 2], [5, 1, 2], 4),
+        ],
+    )
+    ir.normalize_positions()
+    _assert(ir.sub_assemblies[1].position_studs == [0, 2, 2], "negative X shifted to 0")
+    _assert(ir.sub_assemblies[0].position_studs == [5, 0, 0], "other sub-assembly shifted by the same amount")
+
+
+def test_ir_normalize_positions_noop_when_already_valid() -> None:
+    print("test_ir_normalize_positions_noop_when_already_valid")
+    ir = IR.from_json_file(FIXTURES / "tower.json")
+    before = [list(sa.position_studs) for sa in ir.sub_assemblies]
+    ir.normalize_positions()
+    after = [list(sa.position_studs) for sa in ir.sub_assemblies]
+    _assert(before == after, "already-valid IR positions are untouched")
+
+
 def test_fill_box_1x1x1() -> None:
     print("test_fill_box_1x1x1")
     sa = SubAssembly("solo", "box", [0, 0, 0], [1, 1, 1], 4)
@@ -116,6 +216,22 @@ def test_fill_box_4x1x4_packs_two_2x4s() -> None:
     _assert(all(b.part_id == "3001" for b in bricks), "both bricks are 2x4")
 
 
+def test_fill_box_8x1x16_picks_single_8x16() -> None:
+    print("test_fill_box_8x1x16_picks_single_8x16")
+    sa = SubAssembly("slab", "box", [0, 0, 0], [16, 1, 8], 4)
+    bricks = fill_box(sa)
+    _assert(len(bricks) == 1, f"16x8 footprint packs into 1 brick (got {len(bricks)})")
+    _assert(bricks[0].part_id == "4204", f"greedy picks 8x16 (4204) (got {bricks[0].part_id})")
+
+
+def test_fill_box_1x1x6_picks_single_1x6() -> None:
+    print("test_fill_box_1x1x6_picks_single_1x6")
+    sa = SubAssembly("row", "box", [0, 0, 0], [6, 1, 1], 4)
+    bricks = fill_box(sa)
+    _assert(len(bricks) == 1, f"1x6 footprint packs into 1 brick (got {len(bricks)})")
+    _assert(bricks[0].part_id == "3009", f"greedy picks 1x6 (3009) (got {bricks[0].part_id})")
+
+
 def test_fill_box_multi_layer_stacks_vertically() -> None:
     print("test_fill_box_multi_layer_stacks_vertically")
     sa = SubAssembly("pillar", "box", [0, 0, 0], [1, 3, 1], 4)
@@ -123,6 +239,111 @@ def test_fill_box_multi_layer_stacks_vertically() -> None:
     _assert(len(bricks) == 3, f"1x3x1 box produces 3 stacked bricks (got {len(bricks)})")
     y_values = sorted({b.y_ldu for b in bricks})
     _assert(y_values == [BRICK_LDU, 2 * BRICK_LDU, 3 * BRICK_LDU], f"y_ldu values are 1/2/3 brick heights (got {y_values})")
+
+
+def test_fill_ir_merges_adjacent_sub_assemblies_of_same_color() -> None:
+    print("test_fill_ir_merges_adjacent_sub_assemblies_of_same_color")
+    ir = IR(
+        name="corner",
+        sub_assemblies=[
+            SubAssembly("a", "box", [0, 0, 0], [1, 1, 1], 4),
+            SubAssembly("b", "box", [1, 0, 0], [1, 1, 1], 4),
+        ],
+    )
+    # In isolation each sub-assembly is its own 1x1 brick.
+    _assert(len(fill_box(ir.sub_assemblies[0])) == 1, "sub-assembly a alone is 1 brick")
+    _assert(len(fill_box(ir.sub_assemblies[1])) == 1, "sub-assembly b alone is 1 brick")
+    # Through fill_ir, the union grid sees one contiguous 2-cell row and
+    # merges them into a single 1x2 brick spanning the sub-assembly boundary.
+    bricks = fill_ir(ir)
+    _assert(len(bricks) == 1, f"union grid merges into 1 brick (got {len(bricks)})")
+    _assert(bricks[0].part_id == "3004", f"merged brick is 1x2 (3004) (got {bricks[0].part_id})")
+
+
+def test_fill_ir_does_not_merge_different_colors() -> None:
+    print("test_fill_ir_does_not_merge_different_colors")
+    ir = IR(
+        name="corner_two_colors",
+        sub_assemblies=[
+            SubAssembly("a", "box", [0, 0, 0], [1, 1, 1], 4),
+            SubAssembly("b", "box", [1, 0, 0], [1, 1, 1], 14),
+        ],
+    )
+    bricks = fill_ir(ir)
+    _assert(len(bricks) == 2, f"different colors stay separate bricks (got {len(bricks)})")
+    _assert({b.color_code for b in bricks} == {4, 14}, "each brick keeps its own color")
+
+
+def test_fill_ir_overlap_produces_no_double_claimed_cell() -> None:
+    print("test_fill_ir_overlap_produces_no_double_claimed_cell")
+    ir = IR(
+        name="overlap",
+        sub_assemblies=[
+            SubAssembly("first", "box", [0, 0, 0], [2, 1, 2], 4),
+            SubAssembly("second", "box", [1, 0, 1], [2, 1, 2], 14),
+        ],
+    )
+    bricks = fill_ir(ir)
+    occupied: set[tuple[int, int]] = set()
+    for b in bricks:
+        w, d = b.footprint_studs
+        if b.rotation_deg == 90:
+            w, d = d, w
+        for dx in range(w):
+            for dz in range(d):
+                cell = (b.x_stud + dx, b.z_stud + dz)
+                _assert(cell not in occupied, f"cell {cell} claimed by only one brick")
+                occupied.add(cell)
+
+
+def test_fill_wedge_shrinks_one_axis_no_tip() -> None:
+    print("test_fill_wedge_shrinks_one_axis_no_tip")
+    sa = SubAssembly("roof", "wedge", [0, 0, 0], [4, 2, 3], 14, taper_axis="z")
+    bricks = fill_wedge(sa)
+    by_course: dict[int, list[PlacedBrick]] = {}
+    for b in bricks:
+        by_course.setdefault(b.y_ldu, []).append(b)
+    _assert(len(by_course) == 2, f"wedge produces 2 courses (got {len(by_course)})")
+    base, top = (by_course[c] for c in sorted(by_course))
+
+    def extent(course_bricks, axis):
+        lo, hi = [], []
+        for b in course_bricks:
+            w, d = b.footprint_studs
+            if b.rotation_deg == 90:
+                w, d = d, w
+            start, size = (b.x_stud, w) if axis == "x" else (b.z_stud, d)
+            lo.append(start)
+            hi.append(start + size - 1)
+        return min(lo), max(hi)
+
+    _assert(extent(base, "x") == (0, 3), "base course spans full width (0-3)")
+    _assert(extent(top, "x") == (0, 3), "top course keeps full width (taper_axis=z leaves X unchanged)")
+    _assert(extent(base, "z") == (0, 2), "base course spans full depth (0-2)")
+    _assert(extent(top, "z") == (1, 1), "top course shrinks to a single-Z ridge row")
+    _assert(all(b.part_id != "3062" for b in bricks), "wedge never places the cone tip part")
+
+
+def test_fill_tapered_slab_narrows_along_axis() -> None:
+    print("test_fill_tapered_slab_narrows_along_axis")
+    sa = SubAssembly("hull", "tapered_slab", [0, 0, 0], [8, 1, 5], 71, taper_axis="z", taper_to_studs=2)
+    bricks = fill_tapered_slab(sa)
+    cells: set[tuple[int, int]] = set()
+    for b in bricks:
+        w, d = b.footprint_studs
+        if b.rotation_deg == 90:
+            w, d = d, w
+        for dx in range(w):
+            for dz in range(d):
+                cells.add((b.x_stud + dx, b.z_stud + dz))
+
+    def width_at(z: int) -> int:
+        return sum(1 for (_, zz) in cells if zz == z)
+
+    _assert(width_at(0) == 8, f"wide end (z=0) is full width 8 (got {width_at(0)})")
+    _assert(width_at(4) == 2, f"narrow end (z=4) is taper_to_studs 2 (got {width_at(4)})")
+    widths = [width_at(z) for z in range(5)]
+    _assert(widths == sorted(widths, reverse=True), f"width is non-increasing along the taper (got {widths})")
 
 
 def test_fill_cone_shrinks_to_tip() -> None:
@@ -197,10 +418,22 @@ def run_all_tests() -> None:
     tests = [
         test_ir_schema_roundtrip,
         test_ir_schema_rejects_bad_input,
+        test_ir_schema_rejects_bad_taper_fields,
+        test_ir_schema_rejects_bad_special_parts,
+        test_ir_normalize_positions_shifts_negative_axis,
+        test_ir_normalize_positions_noop_when_already_valid,
+        test_ir_normalize_positions_shifts_special_part_anchor,
         test_fill_box_1x1x1,
         test_fill_box_2x1x4_greedy_picks_2x4,
         test_fill_box_4x1x4_packs_two_2x4s,
+        test_fill_box_8x1x16_picks_single_8x16,
+        test_fill_box_1x1x6_picks_single_1x6,
         test_fill_box_multi_layer_stacks_vertically,
+        test_fill_ir_merges_adjacent_sub_assemblies_of_same_color,
+        test_fill_ir_does_not_merge_different_colors,
+        test_fill_ir_overlap_produces_no_double_claimed_cell,
+        test_fill_wedge_shrinks_one_axis_no_tip,
+        test_fill_tapered_slab_narrows_along_axis,
         test_fill_cone_shrinks_to_tip,
         test_ldr_line_format,
         test_tower_end_to_end,

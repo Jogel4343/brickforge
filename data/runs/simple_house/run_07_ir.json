@@ -3,7 +3,7 @@
   "schema_version": "0.1",
   "sub_assemblies": [
     {
-      "name": "wall_north",
+      "name": "wall_back",
       "shape": "box",
       "position_studs": [
         0,
@@ -15,25 +15,10 @@
         6,
         1
       ],
-      "color_code": 19
+      "color_code": 15
     },
     {
-      "name": "wall_south",
-      "shape": "box",
-      "position_studs": [
-        0,
-        0,
-        7
-      ],
-      "dims_studs": [
-        10,
-        6,
-        1
-      ],
-      "color_code": 19
-    },
-    {
-      "name": "wall_west",
+      "name": "wall_left",
       "shape": "box",
       "position_studs": [
         0,
@@ -45,10 +30,10 @@
         6,
         6
       ],
-      "color_code": 19
+      "color_code": 15
     },
     {
-      "name": "wall_east",
+      "name": "wall_right",
       "shape": "box",
       "position_studs": [
         9,
@@ -60,19 +45,49 @@
         6,
         6
       ],
-      "color_code": 19
+      "color_code": 15
     },
     {
-      "name": "door",
+      "name": "wall_front_left",
+      "shape": "box",
+      "position_studs": [
+        0,
+        0,
+        7
+      ],
+      "dims_studs": [
+        4,
+        6,
+        1
+      ],
+      "color_code": 15
+    },
+    {
+      "name": "wall_front_right",
+      "shape": "box",
+      "position_studs": [
+        6,
+        0,
+        7
+      ],
+      "dims_studs": [
+        4,
+        6,
+        1
+      ],
+      "color_code": 15
+    },
+    {
+      "name": "front_door",
       "shape": "box",
       "position_studs": [
         4,
         0,
-        0
+        7
       ],
       "dims_studs": [
         2,
-        3,
+        4,
         1
       ],
       "color_code": 70

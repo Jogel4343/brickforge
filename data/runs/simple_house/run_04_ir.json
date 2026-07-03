@@ -3,7 +3,7 @@
   "schema_version": "0.1",
   "sub_assemblies": [
     {
-      "name": "wall_north",
+      "name": "south_wall_left",
       "shape": "box",
       "position_studs": [
         0,
@@ -11,14 +11,44 @@
         0
       ],
       "dims_studs": [
-        10,
+        4,
         6,
         1
       ],
-      "color_code": 15
+      "color_code": 19
     },
     {
-      "name": "wall_south",
+      "name": "south_wall_right",
+      "shape": "box",
+      "position_studs": [
+        6,
+        0,
+        0
+      ],
+      "dims_studs": [
+        4,
+        6,
+        1
+      ],
+      "color_code": 19
+    },
+    {
+      "name": "south_wall_lintel",
+      "shape": "box",
+      "position_studs": [
+        4,
+        5,
+        0
+      ],
+      "dims_studs": [
+        2,
+        1,
+        1
+      ],
+      "color_code": 19
+    },
+    {
+      "name": "north_wall",
       "shape": "box",
       "position_studs": [
         0,
@@ -30,10 +60,10 @@
         6,
         1
       ],
-      "color_code": 15
+      "color_code": 19
     },
     {
-      "name": "wall_west",
+      "name": "west_wall_bottom",
       "shape": "box",
       "position_studs": [
         0,
@@ -42,13 +72,43 @@
       ],
       "dims_studs": [
         1,
-        6,
+        2,
         6
       ],
-      "color_code": 15
+      "color_code": 19
     },
     {
-      "name": "wall_east",
+      "name": "west_wall_window",
+      "shape": "box",
+      "position_studs": [
+        0,
+        2,
+        1
+      ],
+      "dims_studs": [
+        1,
+        2,
+        6
+      ],
+      "color_code": 1
+    },
+    {
+      "name": "west_wall_top",
+      "shape": "box",
+      "position_studs": [
+        0,
+        4,
+        1
+      ],
+      "dims_studs": [
+        1,
+        2,
+        6
+      ],
+      "color_code": 19
+    },
+    {
+      "name": "east_wall_bottom",
       "shape": "box",
       "position_studs": [
         9,
@@ -57,55 +117,40 @@
       ],
       "dims_studs": [
         1,
-        6,
+        2,
         6
       ],
-      "color_code": 15
+      "color_code": 19
     },
     {
-      "name": "door",
+      "name": "east_wall_window",
       "shape": "box",
       "position_studs": [
-        4,
-        0,
-        0
-      ],
-      "dims_studs": [
+        9,
         2,
-        3,
         1
       ],
-      "color_code": 70
-    },
-    {
-      "name": "window_front_left",
-      "shape": "box",
-      "position_studs": [
+      "dims_studs": [
         1,
-        3,
-        0
-      ],
-      "dims_studs": [
         2,
-        2,
-        1
+        6
       ],
       "color_code": 1
     },
     {
-      "name": "window_front_right",
+      "name": "east_wall_top",
       "shape": "box",
       "position_studs": [
-        7,
-        3,
-        0
-      ],
-      "dims_studs": [
-        2,
-        2,
+        9,
+        4,
         1
       ],
-      "color_code": 1
+      "dims_studs": [
+        1,
+        2,
+        6
+      ],
+      "color_code": 19
     },
     {
       "name": "roof",
@@ -117,7 +162,7 @@
       ],
       "dims_studs": [
         10,
-        5,
+        4,
         8
       ],
       "color_code": 4

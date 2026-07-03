@@ -1,34 +1,105 @@
 import { NextResponse } from "next/server";
+import { execFile } from "node:child_process";
+import { getSupabaseAdminClient } from "@/lib/supabase/server";
 
 /**
  * POST /api/generate
  *
- * v1 path (text-direct): prompt → Modal worker (LegoGPT) → bricks.
+ * Current pipeline (see CLAUDE.md): Claude decomposes the prompt into an IR
+ * of shape primitives, then deterministic Python (worker/filler.py) fills
+ * that IR with real bricks and writes .ldr. scripts/generate_one.py runs
+ * that pipeline for one prompt and prints {ok, name, bricks, ldr} as JSON.
  *
- * Wired up to the Modal worker in Week 4. Until WORKER_URL is set, this
- * route returns a "not ready" stub so the /design page can demo the UI flow
- * without erroring out.
+ * This route shells out to that script as a subprocess. That's an interim
+ * local-dev bridge, not the deployed architecture in CLAUDE.md's
+ * "Deployment shape" (Python worker on Modal, called over HTTP) — swap the
+ * execFile call for a fetch() to WORKER_URL once that's deployed. Nothing
+ * about the IR pipeline itself changes either way.
  *
- * Notes on the design choice:
- *   - We previously had a Meshy text-to-3D stage in front of LegoGPT. We
- *     pulled it out because LegoGPT accepts text prompts directly (per the
- *     CMU paper / repo: `uv run infer` takes a text prompt). Mesh-stage is
- *     a v1.5 addition for photo-upload conditioning. See src/lib/meshy.ts —
- *     code kept for later, not wired up.
+ * Persistence (roadmap #7): after a successful generation, the .ldr is
+ * saved to the Supabase "designs" Storage bucket and a public.designs row
+ * is written, so /d/[id] has something to load. Persistence failures don't
+ * fail the request — the viewer still gets the generated .ldr either way,
+ * it just won't have a shareable link.
  */
 
 interface GenerateRequest {
   prompt?: string;
-  /** Override grid size; default 20 = LegoGPT native max single-pass. */
-  grid?: number;
-  /** Force chunked path for builds > LegoGPT cap. */
-  chunked?: boolean;
+}
+
+// CLI transport (no ANTHROPIC_API_KEY set) shells out to the `claude` CLI on
+// top of the Python subprocess, which is measurably slower than direct API
+// transport — observed a live run take 121s, just over the old 120s cap.
+const GENERATE_TIMEOUT_MS = 240_000;
+
+function runGenerateOne(prompt: string): Promise<{ ok: boolean; [key: string]: any }> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      "python",
+      ["-m", "scripts.generate_one", prompt],
+      { cwd: process.cwd(), timeout: GENERATE_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024 },
+      (err, stdout, stderr) => {
+        if (stdout) {
+          try {
+            resolve(JSON.parse(stdout));
+            return;
+          } catch {
+            // fall through to error handling below
+          }
+        }
+        reject(err ?? new Error(stderr || "scripts.generate_one produced no output"));
+      }
+    );
+  });
+}
+
+/**
+ * Save the generated .ldr to Storage and record a designs row. Returns the
+ * design id on success, or null if persistence fails — a Supabase outage
+ * shouldn't take down generation, it should just mean this run isn't
+ * shareable.
+ */
+async function persistDesign(
+  prompt: string,
+  name: string,
+  bricks: number,
+  ldr: string
+): Promise<string | null> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return null;
+  }
+  try {
+    const supabase = getSupabaseAdminClient();
+    const { data: design, error: insertError } = await supabase
+      .from("designs")
+      .insert({ prompt, status: "succeeded", total_bricks: bricks })
+      .select("id")
+      .single();
+    if (insertError || !design) throw insertError ?? new Error("insert returned no row");
+
+    const ldrPath = `${design.id}.ldr`;
+    const { error: uploadError } = await supabase.storage
+      .from("designs")
+      .upload(ldrPath, ldr, { contentType: "text/plain", upsert: true });
+    if (uploadError) throw uploadError;
+
+    const { error: updateError } = await supabase
+      .from("designs")
+      .update({ ldr_path: ldrPath })
+      .eq("id", design.id);
+    if (updateError) throw updateError;
+
+    return design.id as string;
+  } catch (err) {
+    console.error(`persistDesign failed for prompt ${JSON.stringify(prompt)}:`, err);
+    return null;
+  }
 }
 
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as GenerateRequest;
-    const { prompt, grid = 20, chunked = false } = body;
+    const { prompt } = body;
 
     if (!prompt || typeof prompt !== "string" || prompt.length < 3) {
       return NextResponse.json(
@@ -43,44 +114,21 @@ export async function POST(req: Request) {
       );
     }
 
-    const workerUrl = process.env.WORKER_URL;
-    const workerKey = process.env.WORKER_API_KEY;
-
-    if (!workerUrl) {
-      return NextResponse.json({
-        status: "not_ready",
-        message:
-          "LegoGPT worker not yet deployed. See README.md and worker/README.md " +
-          "for the setup steps: (1) Request HF access to Llama-3.2-1B-Instruct, " +
-          "(2) Get a Gurobi academic license, (3) Deploy worker/modal_app.py to " +
-          "Modal, (4) Set WORKER_URL in .env.local.",
-        prompt,
-      });
+    const result = await runGenerateOne(prompt);
+    if (!result.ok) {
+      console.error(`/api/generate failed for prompt ${JSON.stringify(prompt)}:`, result.error);
+      return NextResponse.json({ error: result.error ?? "generation failed" }, { status: 502 });
     }
 
-    // Real call (Week 4). The worker is responsible for:
-    //   - Running LegoGPT inference (text -> bricks)
-    //   - Chunked / 'subagent' generation if grid > LegoGPT cap
-    //   - Stability check via Gurobi
-    //   - Color palette snap
-    //   - Step planner (layer slice + subassembly detection)
-    //   - Returning {bricks, ldr, preview_png_b64, stats}
-    const r = await fetch(workerUrl, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        ...(workerKey ? { "x-brickforge-key": workerKey } : {}),
-      },
-      body: JSON.stringify({ prompt, grid, chunked }),
+    const id = await persistDesign(prompt, result.name, result.bricks, result.ldr);
+
+    return NextResponse.json({
+      status: "succeeded",
+      id,
+      name: result.name,
+      bricks: result.bricks,
+      ldr: result.ldr,
     });
-    const j = await r.json();
-    if (!r.ok) {
-      return NextResponse.json(
-        { error: j.error ?? `worker ${r.status}` },
-        { status: 502 }
-      );
-    }
-    return NextResponse.json(j);
   } catch (err: any) {
     console.error("/api/generate error", err);
     return NextResponse.json(

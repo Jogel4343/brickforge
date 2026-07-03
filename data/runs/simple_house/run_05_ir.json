@@ -3,7 +3,7 @@
   "schema_version": "0.1",
   "sub_assemblies": [
     {
-      "name": "wall_front",
+      "name": "wall_north",
       "shape": "box",
       "position_studs": [
         0,
@@ -11,29 +11,29 @@
         0
       ],
       "dims_studs": [
-        12,
+        10,
         6,
         1
       ],
-      "color_code": 15
+      "color_code": 19
     },
     {
-      "name": "wall_back",
+      "name": "wall_south",
       "shape": "box",
       "position_studs": [
         0,
         0,
-        9
+        7
       ],
       "dims_studs": [
-        12,
+        10,
         6,
         1
       ],
-      "color_code": 15
+      "color_code": 19
     },
     {
-      "name": "wall_left",
+      "name": "wall_west",
       "shape": "box",
       "position_studs": [
         0,
@@ -43,32 +43,32 @@
       "dims_studs": [
         1,
         6,
-        8
+        6
       ],
-      "color_code": 15
+      "color_code": 19
     },
     {
-      "name": "wall_right",
+      "name": "wall_east",
       "shape": "box",
       "position_studs": [
-        11,
+        9,
         0,
         1
       ],
       "dims_studs": [
         1,
         6,
-        8
+        6
       ],
-      "color_code": 15
+      "color_code": 19
     },
     {
-      "name": "door",
+      "name": "front_door",
       "shape": "box",
       "position_studs": [
-        5,
+        4,
         0,
-        0
+        8
       ],
       "dims_studs": [
         2,
@@ -81,9 +81,9 @@
       "name": "window_left",
       "shape": "box",
       "position_studs": [
+        1,
         2,
-        3,
-        0
+        8
       ],
       "dims_studs": [
         2,
@@ -96,9 +96,24 @@
       "name": "window_right",
       "shape": "box",
       "position_studs": [
-        8,
-        3,
-        0
+        7,
+        2,
+        8
+      ],
+      "dims_studs": [
+        2,
+        2,
+        1
+      ],
+      "color_code": 1
+    },
+    {
+      "name": "window_back",
+      "shape": "box",
+      "position_studs": [
+        4,
+        2,
+        -1
       ],
       "dims_studs": [
         2,
@@ -116,11 +131,26 @@
         0
       ],
       "dims_studs": [
-        12,
-        5,
-        10
+        10,
+        4,
+        8
       ],
       "color_code": 4
+    },
+    {
+      "name": "chimney",
+      "shape": "box",
+      "position_studs": [
+        7,
+        8,
+        2
+      ],
+      "dims_studs": [
+        1,
+        5,
+        1
+      ],
+      "color_code": 71
     }
   ]
 }

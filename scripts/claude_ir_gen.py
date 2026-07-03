@@ -5,11 +5,13 @@ For each run we send the same system prompt (schema + rules + one worked
 example) and the user's text prompt to Claude, then push the response
 through the real pipeline stages:
 
-    parse      response text contains one JSON object
-    schema     JSON validates as an IR (worker.ir_schema)
-    sanity     dimensions are within buildable bounds (no 500-stud walls)
-    fill       the deterministic filler produces placed bricks
-    ldr        bricks render to an .ldr file
+    parse           response text contains one JSON object
+    schema          JSON validates as an IR (worker.ir_schema)
+    sanity          dimensions are within buildable bounds (no 500-stud walls)
+    fill            the deterministic filler produces placed structural bricks
+    special_parts   any special_parts entries resolve against the real
+                    catalog (worker.special_parts) and place successfully
+    ldr             bricks render to an .ldr file
 
 A run is a SUCCESS if it reaches `ldr`. The summary reports N/runs plus a
 failure breakdown by stage, so "Claude emitted invalid JSON" (parser or
@@ -51,6 +53,7 @@ from pathlib import Path
 from worker.filler import fill_ir
 from worker.ir_schema import IR, JSON_SCHEMA
 from worker.ldr_writer import write_ldr
+from worker.special_parts import resolve_special_parts
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = REPO_ROOT / "data" / "fixtures"
@@ -62,7 +65,7 @@ DEFAULT_MODEL = "claude-sonnet-5"
 # a hallucinated 500-stud wall from grinding the filler.
 MAX_FOOTPRINT_STUDS = 64
 MAX_HEIGHT_COURSES = 64
-MAX_SUB_ASSEMBLIES = 16
+MAX_SUB_ASSEMBLIES = 32
 
 
 def build_system_prompt() -> str:
@@ -77,7 +80,11 @@ you never pick bricks.
 Hard output rules:
 - Respond with exactly one JSON object and nothing else. No markdown fences, \
 no commentary before or after.
-- Never mention LEGO part numbers and never place individual bricks.
+- Never mention a specific LEGO part number and never place individual \
+structural bricks. The one exception is special_parts' "query" field, which \
+names a part by INTENT in free text (e.g. "wheel 30mm", "minifig head") — \
+never a part ID or number there either. A separate deterministic step \
+resolves that query against the real parts catalog.
 - The JSON must conform to this schema:
 
 {schema}
@@ -86,21 +93,59 @@ Geometry rules:
 - Units are studs. Y is up. position_studs is the MIN corner [x, y, z] of the \
 primitive's bounding box. dims_studs is [width_x, height_y, depth_z]; \
 height_y counts brick courses.
-- Supported shapes: "box" (solid rectangular volume) and "cone" (square \
-pyramid that shrinks about 1 stud per side per course — good for roofs and \
-spires).
+- Supported shapes:
+  - "box": solid rectangular volume.
+  - "cone": square pyramid that shrinks about 1 stud per side per course on \
+BOTH horizontal axes, ending in a point — hip roofs, spires, turrets.
+  - "wedge": like "cone" but shrinks on only ONE horizontal axis (set \
+taper_axis to "x" or "z"), ending in a ridge line instead of a point — \
+gable/ridge roofs. The other axis stays full width the whole height.
+  - "tapered_slab": constant height; the FOOTPRINT itself is a trapezoid \
+that narrows from the full width down to taper_to_studs (required field) \
+along taper_axis, the same at every course — angled facades, tapered \
+towers, hulls, wings. Unlike wedge/cone, the taper is NOT a function of \
+height.
+- taper_axis ("x" or "z", default "z") and taper_to_studs apply ONLY to \
+"wedge" and "tapered_slab". Example (partial objects, not full IRs):
+  {{"name": "gable_roof", "shape": "wedge", "position_studs": [0, 10, 0], \
+"dims_studs": [8, 4, 6], "taper_axis": "z", "color_code": 4}}
+  -> 8 wide (X), ridge runs along X; depth shrinks from 6 at the base to a \
+1-stud ridge over 4 courses.
+  {{"name": "hull_side", "shape": "tapered_slab", "position_studs": [0, 0, 0], \
+"dims_studs": [8, 3, 10], "taper_axis": "z", "taper_to_studs": 3, \
+"color_code": 71}}
+  -> 8 wide (X) at z=0, narrowing to 3 wide at z=9, constant 3-course height.
 - All coordinates and dimensions are positive-or-zero integers; dims are >= 1.
 - List sub_assemblies bottom-up in build order, with the ground at y=0.
 - Adjacent primitives should touch, not overlap. Stack by starting a \
 primitive's y at the top of what it rests on.
 - Prefer hollow construction for large enclosed volumes: four thin wall \
 boxes instead of one solid block. Small or structural elements can be solid.
-- Keep it modest: footprint within {MAX_FOOTPRINT_STUDS} x {MAX_FOOTPRINT_STUDS} studs, \
+- Decompose into every semantically distinct part the object actually has — \
+separate primitives for each wing, engine, wheel, tower, roof section, window \
+bay, etc. Do not fuse distinct features into one box to save on count: more \
+sub_assemblies generally makes the model more recognizable and detailed, not \
+just bigger.
+- Stay within bounds: footprint within {MAX_FOOTPRINT_STUDS} x {MAX_FOOTPRINT_STUDS} studs, \
 height within {MAX_HEIGHT_COURSES} courses, at most {MAX_SUB_ASSEMBLIES} sub_assemblies.
 - Sub-assembly names are unique snake_case labels.
 - color_code is an LDraw color: 0 black, 1 blue, 2 green, 4 red, 14 yellow, \
 15 white, 19 tan, 28 dark tan, 70 reddish brown, 71 light bluish grey, \
 72 dark bluish grey.
+
+Special parts (optional):
+- Use special_parts ONLY for parts a generic box/cone/wedge/tapered_slab \
+can't represent: wheels, canopies/windscreens, cannons, minifig accessories. \
+Do NOT use it for plain structural elements (walls, floors, roofs) — those \
+stay as sub_assemblies.
+- Each special_part is positioned RELATIVE to a sub_assembly: attach_to \
+names that sub_assembly, and offset_studs [dx, dy, dz] is added to its \
+position_studs to get the placement anchor. Not an absolute world position.
+- query is free text describing what you want by intent, e.g. "wheel 30mm" \
+or "minifig head" — qualify with a size or descriptor when you have one, \
+it improves the match. Never a part ID.
+- Example (partial object): {{"name": "front_left_wheel", "query": "wheel \
+30mm", "attach_to": "chassis", "offset_studs": [0, 0, 0], "color_code": 0}}
 
 Worked example.
 Prompt: "medieval tower"
@@ -121,6 +166,16 @@ def call_api(system_prompt: str, user_prompt: str, model: str) -> str:
         max_tokens=4096,
         system=system_prompt,
         messages=[{"role": "user", "content": user_prompt}],
+        # Extended thinking is on by default for this model and can consume
+        # the ENTIRE max_tokens budget on a prompt it finds complex, leaving
+        # zero tokens for the actual JSON response (observed live: "80's
+        # 911 targa" hit stop_reason=max_tokens with a single 4096-token
+        # thinking block and no text block at all). This stage is
+        # deterministic structured output, not something that benefits from
+        # exposed reasoning, so thinking is switched off rather than just
+        # raising max_tokens (which would only push the failure to a more
+        # complex prompt, not fix it).
+        thinking={"type": "disabled"},
     )
     return "".join(b.text for b in resp.content if b.type == "text")
 
@@ -198,8 +253,8 @@ def count_collisions(bricks) -> int:
 
 
 def evaluate(raw_text: str, out_dir: Path, run_idx: int) -> dict:
-    """Run one raw response through parse -> schema -> sanity -> fill -> ldr.
-    Returns the per-run summary record."""
+    """Run one raw response through parse -> schema -> sanity -> fill ->
+    special_parts -> ldr. Returns the per-run summary record."""
     rec: dict = {
         "run": run_idx,
         "ok": False,
@@ -213,8 +268,10 @@ def evaluate(raw_text: str, out_dir: Path, run_idx: int) -> dict:
         (out_dir / f"run_{run_idx:02d}_ir.json").write_text(json.dumps(data, indent=2) + "\n")
 
         ir = IR.from_dict(data)
+        ir.normalize_positions()
         rec["stage_reached"] = "schema"
         rec["sub_assemblies"] = len(ir.sub_assemblies)
+        rec["special_parts"] = len(ir.special_parts)
 
         sanity_check(ir)
         rec["stage_reached"] = "sanity"
@@ -223,6 +280,11 @@ def evaluate(raw_text: str, out_dir: Path, run_idx: int) -> dict:
         rec["stage_reached"] = "fill"
         rec["bricks"] = len(bricks)
         rec["collisions"] = count_collisions(bricks)
+
+        special_bricks = resolve_special_parts(ir)
+        rec["stage_reached"] = "special_parts"
+        rec["special_parts_resolved"] = [b.part_id for b in special_bricks]
+        bricks = bricks + special_bricks
 
         ldr_path = out_dir / f"run_{run_idx:02d}.ldr"
         write_ldr(bricks, ldr_path, model_name=ir.name)
@@ -235,11 +297,12 @@ def evaluate(raw_text: str, out_dir: Path, run_idx: int) -> dict:
 
 
 FAILURE_STAGE_AFTER = {
-    None: "parse",       # died before parse completed
-    "parse": "schema",   # parsed, died validating
+    None: "parse",               # died before parse completed
+    "parse": "schema",           # parsed, died validating
     "schema": "sanity",
     "sanity": "fill",
-    "fill": "ldr",
+    "fill": "special_parts",
+    "special_parts": "ldr",
 }
 
 
@@ -328,7 +391,7 @@ def main() -> int:
     }
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
 
-    print(f"\n{n_success}/{args.runs} runs succeeded (parse + schema + sanity + fill + ldr)")
+    print(f"\n{n_success}/{args.runs} runs succeeded (parse + schema + sanity + fill + special_parts + ldr)")
     if failures:
         print(f"failures by stage: {failures}")
     print(f"summary: {out_dir / 'summary.json'}")
