@@ -212,19 +212,31 @@ def _rasterize_tapered_slab(sa: SubAssembly) -> CellGrid:
     """A trapezoid footprint (viewed from above), extruded to constant
     height. Unlike wedge/cone, the taper is a function of position ALONG
     the taper axis, not of course — every course gets the identical
-    trapezoid. Shrinks symmetrically (centered), same visual convention as
-    cone/wedge, from dims_studs' cross-width down to taper_to_studs."""
+    trapezoid. Interpolates from dims_studs' cross-width at the near end
+    (position_studs) to taper_to_studs at the far end; taper_to_studs may be
+    smaller (narrows — a tapered tower, a hull) or larger (widens — a
+    flared fender) than the near end.
+
+    Centered on max(near, far), NOT always on `near`: centering on `near`
+    would make a widening taper's inset go negative (cells to the left of
+    position_studs — outside the sub-assembly's own declared bounding box,
+    and invisible to sanity_check's position_studs-only bounds check).
+    Centering on the wider of the two ends keeps inset >= 0 for both
+    directions, and is provably identical to the old narrowing-only formula
+    when far < near (max(near, far) == near in that case) — verified by
+    hand against the original inset-based version before replacing it."""
     px, py, pz = sa.position_studs
     w, h, d = sa.dims_studs
-    narrow = sa.taper_to_studs
-    wide, length = (w, d) if sa.taper_axis == "z" else (d, w)
+    far = sa.taper_to_studs
+    near, length = (w, d) if sa.taper_axis == "z" else (d, w)
+    full_wide = max(near, far)
     cells: CellGrid = {}
     for layer in range(h):
         course = py + layer
         layer_cells = cells.setdefault(course, {})
         for i in range(length):
-            inset = ((wide - narrow) * i) // (2 * (length - 1)) if length > 1 else 0
-            cur_wide = max(narrow, wide - 2 * inset)
+            cur_wide = near + ((far - near) * i) // (length - 1) if length > 1 else near
+            inset = (full_wide - cur_wide) // 2
             for j in range(inset, inset + cur_wide):
                 cell = (px + j, pz + i) if sa.taper_axis == "z" else (px + i, pz + j)
                 layer_cells[cell] = sa.color_code

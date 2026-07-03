@@ -57,7 +57,9 @@ class SubAssembly:
     dims_studs: list[int]             # [width_x, height_y, depth_z]
     color_code: int = 4               # LDraw color code (4 = red; 14 = yellow; 71 = light bluish grey)
     taper_axis: TaperAxis = "z"       # 'wedge'/'tapered_slab' only: which horizontal axis tapers
-    taper_to_studs: int | None = None  # 'tapered_slab' only (required): width of the narrow end
+    taper_to_studs: int | None = None  # 'tapered_slab' only (required): width at the far end —
+                                        # smaller than dims_studs' wide dimension to narrow (a
+                                        # tapered tower, a hull), larger to widen (a flared fender)
 
     def __post_init__(self) -> None:
         if len(self.position_studs) != 3:
@@ -73,12 +75,12 @@ class SubAssembly:
         if self.shape == "tapered_slab":
             if self.taper_to_studs is None or self.taper_to_studs < 1:
                 raise ValueError(f"{self.name}: tapered_slab requires taper_to_studs >= 1")
-            wide_dim = self.dims_studs[0] if self.taper_axis == "z" else self.dims_studs[2]
-            if self.taper_to_studs > wide_dim:
-                raise ValueError(
-                    f"{self.name}: taper_to_studs ({self.taper_to_studs}) must be <= "
-                    f"the tapered dimension ({wide_dim})"
-                )
+            # No upper bound here: taper_to_studs may be smaller than the
+            # base (narrowing — a tapered tower, a boat hull) OR larger
+            # (widening — a flared fender). Both are structurally valid;
+            # only the overall footprint has a sane cap, and that belongs
+            # to the generation pipeline's sanity_check (which already owns
+            # MAX_FOOTPRINT_STUDS), not this schema module.
 
 
 @dataclass
@@ -223,9 +225,11 @@ JSON_SCHEMA: dict[str, Any] = {
                         "type": "integer",
                         "minimum": 1,
                         "description": (
-                            "'tapered_slab' ONLY, required. Width in studs of the narrow end. "
-                            "The wide end is the dims_studs component perpendicular to "
-                            "taper_axis (width_x if taper_axis is 'z', depth_z if 'x')."
+                            "'tapered_slab' ONLY, required. Width in studs at the far end. "
+                            "The near/base end is the dims_studs component perpendicular to "
+                            "taper_axis (width_x if taper_axis is 'z', depth_z if 'x'). Smaller "
+                            "than the base to NARROW (a tapered tower, a hull); larger to WIDEN "
+                            "(a flared fender, a trumpet bell)."
                         ),
                     },
                 },

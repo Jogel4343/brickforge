@@ -100,12 +100,11 @@ def test_ir_schema_rejects_bad_taper_fields() -> None:
         pass
     _assert(True, "rejects tapered_slab without taper_to_studs")
 
-    try:
-        SubAssembly("bad", "tapered_slab", [0, 0, 0], [8, 1, 5], taper_axis="z", taper_to_studs=20)
-        raise AssertionError("expected ValueError for taper_to_studs exceeding the tapered dimension")
-    except ValueError:
-        pass
-    _assert(True, "rejects taper_to_studs larger than the tapered dimension")
+    # taper_to_studs larger than dims_studs' cross-axis is a WIDENING taper
+    # (a flare), not an error — only a narrowing-only constraint existed
+    # before this was needed for real (a 911's flared rear fenders).
+    sa = SubAssembly("flare", "tapered_slab", [0, 0, 0], [8, 1, 5], taper_axis="z", taper_to_studs=20)
+    _assert(sa.taper_to_studs == 20, "accepts taper_to_studs larger than the near-end width (a flare)")
 
     try:
         SubAssembly("bad", "wedge", [0, 0, 0], [4, 2, 3], taper_axis="y")
@@ -346,6 +345,41 @@ def test_fill_tapered_slab_narrows_along_axis() -> None:
     _assert(widths == sorted(widths, reverse=True), f"width is non-increasing along the taper (got {widths})")
 
 
+def test_fill_tapered_slab_widens_along_axis() -> None:
+    print("test_fill_tapered_slab_widens_along_axis")
+    # The actual bug this fixes: a car's fender is narrower mid-body than at
+    # the flared rear -- taper_to_studs (10) is LARGER than the near end
+    # (dims_studs[0]=6), which used to be rejected and, if the validation
+    # were merely relaxed without fixing the rasterizer, produced cells
+    # outside the sub-assembly's own bounding box (see filler.py's
+    # _rasterize_tapered_slab docstring).
+    sa = SubAssembly("flare", "tapered_slab", [0, 0, 0], [6, 1, 8], 4, taper_axis="z", taper_to_studs=10)
+    bricks = fill_tapered_slab(sa)
+    cells: set[tuple[int, int]] = set()
+    for b in bricks:
+        w, d = b.footprint_studs
+        if b.rotation_deg == 90:
+            w, d = d, w
+        for dx in range(w):
+            for dz in range(d):
+                cells.add((b.x_stud + dx, b.z_stud + dz))
+
+    def width_at(z: int) -> int:
+        return sum(1 for (_, zz) in cells if zz == z)
+
+    _assert(width_at(0) == 6, f"near end (z=0) is dims_studs' 6 (got {width_at(0)})")
+    _assert(width_at(7) == 10, f"far end (z=7) is taper_to_studs 10 (got {width_at(7)})")
+    widths = [width_at(z) for z in range(8)]
+    _assert(widths == sorted(widths), f"width is non-decreasing along the taper (got {widths})")
+    # Centered on max(near, far) = 10, not on the near end's own 6-wide
+    # midline -- otherwise inset goes negative and cells fall to the left
+    # of position_studs (x < 0), invisible to sanity_check's bounds check.
+    min_x = min(x for x, _ in cells)
+    max_x = max(x for x, _ in cells)
+    _assert(min_x >= 0, f"no cell falls left of position_studs (got min x={min_x})")
+    _assert(max_x < 10, f"no cell exceeds the widened footprint's own extent (got max x={max_x})")
+
+
 def test_fill_cone_shrinks_to_tip() -> None:
     print("test_fill_cone_shrinks_to_tip")
     sa = SubAssembly("cone", "cone", [0, 0, 0], [3, 2, 3], 14)
@@ -434,6 +468,7 @@ def run_all_tests() -> None:
         test_fill_ir_overlap_produces_no_double_claimed_cell,
         test_fill_wedge_shrinks_one_axis_no_tip,
         test_fill_tapered_slab_narrows_along_axis,
+        test_fill_tapered_slab_widens_along_axis,
         test_fill_cone_shrinks_to_tip,
         test_ldr_line_format,
         test_tower_end_to_end,

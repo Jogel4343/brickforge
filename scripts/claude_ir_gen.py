@@ -101,10 +101,12 @@ BOTH horizontal axes, ending in a point — hip roofs, spires, turrets.
 taper_axis to "x" or "z"), ending in a ridge line instead of a point — \
 gable/ridge roofs. The other axis stays full width the whole height.
   - "tapered_slab": constant height; the FOOTPRINT itself is a trapezoid \
-that narrows from the full width down to taper_to_studs (required field) \
-along taper_axis, the same at every course — angled facades, tapered \
-towers, hulls, wings. Unlike wedge/cone, the taper is NOT a function of \
-height.
+along taper_axis, the same at every course. dims_studs' cross-axis width is \
+the NEAR end (at position_studs); taper_to_studs (required field) is the \
+FAR end — smaller to NARROW (angled facades, tapered towers, hulls, wings) \
+or LARGER to WIDEN (a flared fender, a bell shape). Unlike wedge/cone, the \
+taper is NOT a function of height, and there's no upper limit tying \
+taper_to_studs to dims_studs — it can be bigger.
 - taper_axis ("x" or "z", default "z") and taper_to_studs apply ONLY to \
 "wedge" and "tapered_slab". Example (partial objects, not full IRs):
   {{"name": "gable_roof", "shape": "wedge", "position_studs": [0, 10, 0], \
@@ -115,6 +117,12 @@ height.
 "dims_studs": [8, 3, 10], "taper_axis": "z", "taper_to_studs": 3, \
 "color_code": 71}}
   -> 8 wide (X) at z=0, narrowing to 3 wide at z=9, constant 3-course height.
+  {{"name": "rear_fender_flare", "shape": "tapered_slab", "position_studs": \
+[0, 0, 0], "dims_studs": [6, 4, 8], "taper_axis": "z", "taper_to_studs": 10, \
+"color_code": 4}}
+  -> 6 wide (X) at z=0 (near the car's mid-body), WIDENING to 10 wide at \
+z=7 (the flared rear) — taper_to_studs (10) is larger than dims_studs' 6, \
+which is allowed and means "widen," not an error.
 - All coordinates and dimensions are positive-or-zero integers; dims are >= 1.
 - List sub_assemblies bottom-up in build order, with the ground at y=0.
 - Adjacent primitives should touch, not overlap. Stack by starting a \
@@ -232,6 +240,15 @@ def sanity_check(ir: IR) -> None:
             raise ValueError(f"{sa.name}: top at {y + h} courses exceeds cap {MAX_HEIGHT_COURSES}")
         if min(x, y, z) < 0:
             raise ValueError(f"{sa.name}: negative position {sa.position_studs}")
+        # tapered_slab's far end (taper_to_studs) isn't part of dims_studs
+        # and can legitimately exceed it (a flare widens past the near
+        # end) — checked separately since the w/d check above only covers
+        # the near end's declared bounding box.
+        if sa.shape == "tapered_slab" and sa.taper_to_studs is not None:
+            if sa.taper_to_studs > MAX_FOOTPRINT_STUDS:
+                raise ValueError(
+                    f"{sa.name}: taper_to_studs {sa.taper_to_studs} exceeds cap {MAX_FOOTPRINT_STUDS}"
+                )
 
 
 def count_collisions(bricks) -> int:
