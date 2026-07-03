@@ -52,7 +52,7 @@ def test_resolve_special_parts_places_known_good_query() -> None:
     # min-corner shifts by half the real footprint.
     _assert(p.footprint_studs == (4, 2), f"real 3001 geometry is a 4x2 brick (got {p.footprint_studs})")
     _assert((p.x_stud, p.z_stud) == (-1, 0), f"min-corner centers the real footprint on anchor+offset (got {(p.x_stud, p.z_stud)})")
-    # bottom_offset_ldu for a standard full-height brick == BRICK_LDU, same
+    # mount_offset_ldu for a standard full-height brick == BRICK_LDU, same
     # as the old hardcoded assumption — this case is unchanged in practice.
     _assert(p.y_ldu == 2 * BRICK_LDU, f"y_ldu uses course = anchor_y + offset_y (got {p.y_ldu})")
     _assert(p.color_code == 4, "keeps the special part's own color_code")

@@ -24,14 +24,31 @@ docs/SPECIAL_PARTS_TODO.md #4):
     and that computing the real bbox per part is necessary, not optional.
 
 Placement rule used by resolve_special_parts: align the part's true
-geometric BOTTOM with the bottom of its target course. This exactly
-reproduces the existing brick/plate convention (bottom_offset_ldu ==
-BRICK_LDU or PLATE_LDU for those parts) and generalizes correctly to
-everything else. It's an approximation for parts meant to be mounted by a
-different reference point (a wheel's hub, say) rather than rested on a
-surface — no per-category "this part mounts by its center" semantics exist
-yet. That's a real limitation, not silently papered over: real slope/wedge
-PARTS and SNOT remain deferred (CLAUDE.md), and this doesn't change that.
+geometric BOTTOM with the bottom of its target course, UNLESS the part's
+geometry is symmetric about its own origin (a wheel), in which case its
+CENTER is aligned to the target instead. This isn't a per-category lookup
+table ("wheels mount by center") — it falls directly out of the same bbox
+data, on the theory that a part's own LDraw author already encoded its
+mount convention in where they put the origin: surface-resting parts
+(bricks, plates, a minifig head resting on a neck post) have their origin
+near one extreme of their own bounding box; hub-mounted parts (a wheel) have
+their origin at the geometric center, because there's no natural "bottom".
+
+Verified BOTH conventions are real and necessary, not a hypothetical: a
+live "an 80's 911 targa" generation had wheels bottom-mounted (the only
+convention v1 of this module supported) and the wheel's true bottom ended
+up 24 LDU (a full course) BELOW the chassis's own bottom edge, clipping
+through the ground — because a wheel's bottom-mount offset (radius, ~31 LDU
+for 3482c01) is larger than a full course (24 LDU), so "rest the bottom on
+the course floor" put the wheel's CENTER above the floor by (31-24)=7 LDU,
+nowhere near seated against the chassis. Center-mounting fixes this for any
+part shaped like a wheel without hardcoding "wheel".
+
+This is still an approximation, not full correctness: it assumes the
+"right" reference point is always either the true bottom or the true
+center, never something in between (an off-center hinge, say). No
+per-category mount metadata exists. Real slope/wedge PARTS and SNOT remain
+deferred (CLAUDE.md), and this doesn't change that.
 
 Horizontal (X/Z) placement still assumes the part's footprint is centered on
 its own origin, matching worker/ldr_writer.py's brick_to_ldr_line. True for
@@ -53,7 +70,14 @@ from worker.ldr_writer import BRICK_LDU, STUD_LDU
 # data) — reproduces the old nominal placeholder exactly, so a parse failure
 # degrades to previous behavior rather than crashing generation.
 _FALLBACK_FOOTPRINT_STUDS = (1, 1)
-_FALLBACK_BOTTOM_OFFSET_LDU = BRICK_LDU
+_FALLBACK_MOUNT_OFFSET_LDU = BRICK_LDU
+
+# A part is treated as center-mounted (a wheel) rather than bottom-mounted
+# (a brick resting on a surface) when its origin sits within this fraction
+# of its own half-height from the geometric center. 0.3 cleanly separates
+# every real part checked: a wheel (3482c01) is exactly 0 (perfectly
+# symmetric), a plate is ~0.33, a standard brick is ~0.71.
+_CENTER_MOUNT_THRESHOLD = 0.3
 
 _SEARCH_SUBDIRS = ("parts", "parts/s", "p", "p/48")
 
@@ -65,7 +89,10 @@ Matrix = tuple[float, ...]  # 16 values, row-major 4x4
 class PartBBox:
     """A resolved part's real geometry, in placement-ready units."""
     footprint_studs: tuple[int, int]  # (width_x, depth_z), rounded, min 1 each
-    bottom_offset_ldu: int            # local LDraw-Y (down-positive) of the part's lowest point
+    mount_offset_ldu: int             # how far ABOVE the target course the origin sits, so the
+                                       # right reference point (true bottom, or true center for a
+                                       # center-mounted part) lands exactly at the target
+    is_center_mounted: bool           # True if placed by geometric center (a wheel), not bottom
 
 
 def _make_matrix(x: float, y: float, z: float, a: float, b: float, c: float,
@@ -152,17 +179,24 @@ def _local_bbox(path_str: str) -> tuple[Point, Point] | None:
 
 
 def get_part_bbox(part_id: str) -> PartBBox:
-    """Real footprint + bottom-offset for a resolved part_id, computed from
+    """Real footprint + mount offset for a resolved part_id, computed from
     its actual LDraw geometry. Falls back to the old nominal placeholder
-    (1, 1) footprint / BRICK_LDU offset if the part can't be found or
-    parsed — never raises, since a geometry miss shouldn't fail generation."""
+    (1, 1) footprint / BRICK_LDU bottom-mount offset if the part can't be
+    found or parsed — never raises, since a geometry miss shouldn't fail
+    generation."""
     path = _resolve_file(f"{part_id}.dat")
     bbox = _local_bbox(str(path)) if path else None
     if bbox is None:
-        return PartBBox(_FALLBACK_FOOTPRINT_STUDS, _FALLBACK_BOTTOM_OFFSET_LDU)
+        return PartBBox(_FALLBACK_FOOTPRINT_STUDS, _FALLBACK_MOUNT_OFFSET_LDU, is_center_mounted=False)
 
     (minx, miny, minz), (maxx, maxy, maxz) = bbox
     width_studs = max(1, round((maxx - minx) / STUD_LDU))
     depth_studs = max(1, round((maxz - minz) / STUD_LDU))
-    bottom_offset_ldu = round(maxy)  # LDraw Y is down-positive: max = lowest point
-    return PartBBox((width_studs, depth_studs), bottom_offset_ldu)
+
+    # LDraw Y is down-positive: max = lowest point, min = highest point.
+    center_offset = (miny + maxy) / 2
+    half_extent = (maxy - miny) / 2
+    is_center_mounted = half_extent > 0 and abs(center_offset) < _CENTER_MOUNT_THRESHOLD * half_extent
+
+    mount_offset_ldu = round(center_offset) if is_center_mounted else round(maxy)
+    return PartBBox((width_studs, depth_studs), mount_offset_ldu, is_center_mounted)

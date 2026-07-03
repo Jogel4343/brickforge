@@ -75,7 +75,7 @@ def resolve_special_parts(ir: IR, catalog: Catalog | None = None) -> list[Placed
         center_z = anchor.position_studs[2] + sp.offset_studs[2]
         x = center_x - fw // 2
         z = center_z - fd // 2
-        y_ldu = course * BRICK_LDU + bbox.bottom_offset_ldu
+        y_ldu = course * BRICK_LDU + bbox.mount_offset_ldu
 
         placed.append(PlacedBrick(
             part_id=part_id,

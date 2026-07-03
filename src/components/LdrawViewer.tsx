@@ -128,8 +128,9 @@ export default function LdrawViewer({
 
   // -------- Load model --------
   useEffect(() => {
-    const { scene } = stateRef.current;
+    const scene = stateRef.current.scene;
     if (!scene) return;
+    const sceneNonNull = scene; // TS doesn't retain narrowing through the nested closure below
 
     setLoading(true);
     setLoadError(null);
@@ -145,125 +146,141 @@ export default function LdrawViewer({
       modelUrl ??
       "https://raw.githubusercontent.com/mrdoob/three.js/master/examples/models/ldraw/officialLibrary/models/car.ldr_Packed.mpd";
 
-    loader.load(
-      url,
-      (group) => {
-        if (stateRef.current.model) {
-          scene.remove(stateRef.current.model);
-        }
-
-        // CRITICAL FIX 1: strip wireframe edges. LDrawLoader emits LineSegments
-        // for the iconic LEGO black outlines on every part. These were causing
-        // the "ghost wireframe" bricks the user saw — line geometry stays put
-        // when we reposition brick meshes (lines are siblings of mesh groups,
-        // not part of the bricks themselves). Removing them cleans the visual
-        // and also speeds up rendering.
-        const toRemove: THREE.Object3D[] = [];
-        group.traverse((node) => {
-          if ((node as any).isLineSegments || (node as any).isLine) {
-            toRemove.push(node);
+    function loadModel() {
+      loader.load(
+        url,
+        (group) => {
+          if (stateRef.current.model) {
+            sceneNonNull.remove(stateRef.current.model);
           }
-        });
-        toRemove.forEach((n) => n.parent?.remove(n));
 
-        // LDraw uses Y-down; flip to Y-up so camera/controls make sense.
-        group.rotation.x = Math.PI;
+          // CRITICAL FIX 1: strip wireframe edges. LDrawLoader emits LineSegments
+          // for the iconic LEGO black outlines on every part. These were causing
+          // the "ghost wireframe" bricks the user saw — line geometry stays put
+          // when we reposition brick meshes (lines are siblings of mesh groups,
+          // not part of the bricks themselves). Removing them cleans the visual
+          // and also speeds up rendering.
+          const toRemove: THREE.Object3D[] = [];
+          group.traverse((node) => {
+            if ((node as any).isLineSegments || (node as any).isLine) {
+              toRemove.push(node);
+            }
+          });
+          toRemove.forEach((n) => n.parent?.remove(n));
 
-        scene.add(group);
-        stateRef.current.model = group;
+          // LDraw uses Y-down; flip to Y-up so camera/controls make sense.
+          group.rotation.x = Math.PI;
 
-        // CRITICAL FIX 2: smarter brick detection. Previous heuristic was
-        // "leaf group whose children are all meshes" — but with edge geometry
-        // (now stripped) some bricks didn't match. Three layers of robustness:
-        //   (a) Group has LDraw brick metadata (partType / colorCode)
-        //   (b) Group whose direct children are all meshes
-        //   (c) Each mesh as its own brick (last-resort fallback)
-        const bricks: THREE.Object3D[] = [];
+          sceneNonNull.add(group);
+          stateRef.current.model = group;
 
-        // Layer (a)
-        group.traverse((node) => {
-          if (!(node as any).isGroup) return;
-          const ud = (node as any).userData || {};
-          const hasMetadata =
-            ud.partType !== undefined ||
-            ud.colorCode !== undefined ||
-            ud.constructionStep !== undefined;
-          if (hasMetadata && node.children.length > 0) {
-            bricks.push(node);
-          }
-        });
+          // CRITICAL FIX 2: smarter brick detection. Previous heuristic was
+          // "leaf group whose children are all meshes" — but with edge geometry
+          // (now stripped) some bricks didn't match. Three layers of robustness:
+          //   (a) Group has LDraw brick metadata (partType / colorCode)
+          //   (b) Group whose direct children are all meshes
+          //   (c) Each mesh as its own brick (last-resort fallback)
+          const bricks: THREE.Object3D[] = [];
 
-        // Layer (b)
-        if (bricks.length === 0) {
+          // Layer (a)
           group.traverse((node) => {
             if (!(node as any).isGroup) return;
-            const leaf =
-              node.children.length > 0 &&
-              node.children.every((c) => (c as any).isMesh);
-            if (leaf) bricks.push(node);
+            const ud = (node as any).userData || {};
+            const hasMetadata =
+              ud.partType !== undefined ||
+              ud.colorCode !== undefined ||
+              ud.constructionStep !== undefined;
+            if (hasMetadata && node.children.length > 0) {
+              bricks.push(node);
+            }
           });
-        }
 
-        // Layer (c)
-        if (bricks.length === 0) {
-          group.traverse((node) => {
-            if ((node as any).isMesh) bricks.push(node);
-          });
-        }
-
-        stateRef.current.bricks = bricks;
-        setBrickCount(bricks.length);
-
-        // Cache per-brick origin + offset-from-center for the explode pass.
-        const bbox = new THREE.Box3().setFromObject(group);
-        stateRef.current.bbox = bbox;
-        const center = new THREE.Vector3();
-        bbox.getCenter(center);
-        bricks.forEach((b) => {
-          const worldPos = new THREE.Vector3();
-          b.getWorldPosition(worldPos);
-          b.userData.originalPosition = b.position.clone();
-          b.userData.worldCenterOffset = worldPos.clone().sub(center);
-        });
-
-        // Build authored-step list (LDraw files can group bricks into steps).
-        const steps: THREE.Group[] = [];
-        group.traverse((child) => {
-          if (
-            (child as any).isGroup &&
-            (child as any).userData?.constructionStep !== undefined
-          ) {
-            steps.push(child as THREE.Group);
+          // Layer (b)
+          if (bricks.length === 0) {
+            group.traverse((node) => {
+              if (!(node as any).isGroup) return;
+              const leaf =
+                node.children.length > 0 &&
+                node.children.every((c) => (c as any).isMesh);
+              if (leaf) bricks.push(node);
+            });
           }
-        });
-        stateRef.current.steps = steps;
-        setTotalSteps(steps.length);
 
-        // Fit camera to model.
-        const size = new THREE.Vector3();
-        bbox.getSize(size);
-        const maxDim = Math.max(size.x, size.y, size.z);
-        const cam = stateRef.current.camera!;
-        const ctrl = stateRef.current.controls!;
-        cam.position.set(
-          center.x + maxDim * 1.2,
-          center.y + maxDim * 1.0,
-          center.z + maxDim * 1.5
-        );
-        ctrl.target.copy(center);
-        ctrl.update();
+          // Layer (c)
+          if (bricks.length === 0) {
+            group.traverse((node) => {
+              if ((node as any).isMesh) bricks.push(node);
+            });
+          }
 
-        setLoading(false);
-      },
-      undefined,
-      (err) => {
-        console.error("LDraw load failed", err);
-        setLoadError(
-          "Couldn't load this model. Check the browser console — most likely a network issue fetching part .dat files from the LDraw mirror."
-        );
-        setLoading(false);
-      }
-    );
+          stateRef.current.bricks = bricks;
+          setBrickCount(bricks.length);
+
+          // Cache per-brick origin + offset-from-center for the explode pass.
+          const bbox = new THREE.Box3().setFromObject(group);
+          stateRef.current.bbox = bbox;
+          const center = new THREE.Vector3();
+          bbox.getCenter(center);
+          bricks.forEach((b) => {
+            const worldPos = new THREE.Vector3();
+            b.getWorldPosition(worldPos);
+            b.userData.originalPosition = b.position.clone();
+            b.userData.worldCenterOffset = worldPos.clone().sub(center);
+          });
+
+          // Build authored-step list (LDraw files can group bricks into steps).
+          const steps: THREE.Group[] = [];
+          group.traverse((child) => {
+            if (
+              (child as any).isGroup &&
+              (child as any).userData?.constructionStep !== undefined
+            ) {
+              steps.push(child as THREE.Group);
+            }
+          });
+          stateRef.current.steps = steps;
+          setTotalSteps(steps.length);
+
+          // Fit camera to model.
+          const size = new THREE.Vector3();
+          bbox.getSize(size);
+          const maxDim = Math.max(size.x, size.y, size.z);
+          const cam = stateRef.current.camera!;
+          const ctrl = stateRef.current.controls!;
+          cam.position.set(
+            center.x + maxDim * 1.2,
+            center.y + maxDim * 1.0,
+            center.z + maxDim * 1.5
+          );
+          ctrl.target.copy(center);
+          ctrl.update();
+
+          setLoading(false);
+        },
+        undefined,
+        (err) => {
+          console.error("LDraw load failed", err);
+          setLoadError(
+            "Couldn't load this model. Check the browser console — most likely a network issue fetching part .dat files from the LDraw mirror."
+          );
+          setLoading(false);
+        }
+      );
+    }
+
+    // CRITICAL FIX 3: without this, LDrawLoader's color library stays empty
+    // and EVERY part falls back to its built-in missingColorMaterial
+    // (0xFF00FF — pure magenta), regardless of the .ldr file's actual color
+    // codes. This was true for every model this viewer has ever rendered,
+    // not something specific to one generation — preloadMaterials() must be
+    // called and awaited before load() for per-part LDraw colors to apply.
+    loader
+      .preloadMaterials(`${partsLibraryPath}LDConfig.ldr`)
+      .then(loadModel)
+      .catch((err) => {
+        console.error("LDraw color preload failed, falling back to load without materials", err);
+        loadModel();
+      });
   }, [modelUrl, partsLibraryPath]);
 
   // -------- Explode view (radial, distance-scaled) --------
