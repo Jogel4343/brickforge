@@ -40,32 +40,51 @@ from worker.special_parts import resolve_special_parts
 
 DEFAULT_MODEL = "claude-sonnet-5"
 
+# Claude occasionally produces an IR that fails schema/sanity validation on
+# its own merits (e.g. degenerate dims_studs, an out-of-range taper) — not a
+# transport problem, just an occasional bad sample. Confirmed non-systematic
+# by sampling: 1 dims failure + 1 taper failure in 6 fresh live calls on the
+# same prompt, the other 4 clean. A bounded retry absorbs that without
+# masking a real, reproducible bug (a genuinely broken prompt/schema
+# combination would fail all MAX_ATTEMPTS the same way, and still surfaces).
+MAX_ATTEMPTS = 3
+
 
 def generate_one(prompt: str, model: str = DEFAULT_MODEL) -> dict:
     system_prompt = build_system_prompt()
     transport = "api" if os.environ.get("ANTHROPIC_API_KEY") else "cli"
+    if transport == "cli" and shutil.which("claude") is None:
+        return {"ok": False, "error": "no ANTHROPIC_API_KEY and no `claude` CLI on PATH"}
 
-    try:
-        if transport == "api":
-            raw = call_api(system_prompt, prompt, model)
-        else:
-            if shutil.which("claude") is None:
-                return {"ok": False, "error": "no ANTHROPIC_API_KEY and no `claude` CLI on PATH"}
-            neutral_cwd = tempfile.mkdtemp(prefix="brickforge_gen_")
-            raw = call_cli(system_prompt, prompt, model, cwd=neutral_cwd)
-    except Exception as exc:  # noqa: BLE001 — surfaced to the caller as JSON
-        return {"ok": False, "error": f"transport failure: {type(exc).__name__}: {exc}"}
+    last_error: Exception | None = None
+    last_raw = ""
+    for _attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            if transport == "api":
+                raw = call_api(system_prompt, prompt, model)
+            else:
+                neutral_cwd = tempfile.mkdtemp(prefix="brickforge_gen_")
+                raw = call_cli(system_prompt, prompt, model, cwd=neutral_cwd)
+        except Exception as exc:  # noqa: BLE001 — surfaced to the caller as JSON
+            return {"ok": False, "error": f"transport failure: {type(exc).__name__}: {exc}"}
 
-    try:
-        data = extract_json(raw)
-        ir = IR.from_dict(data)
-        ir.normalize_positions()
-        sanity_check(ir)
-        bricks = fill_ir(ir) + resolve_special_parts(ir)
-        ldr = render_to_string(bricks, model_name=ir.name)
-        return {"ok": True, "name": ir.name, "bricks": len(bricks), "ldr": ldr}
-    except Exception as exc:  # noqa: BLE001
-        return {"ok": False, "error": f"{type(exc).__name__}: {exc}", "raw": raw[:2000]}
+        last_raw = raw
+        try:
+            data = extract_json(raw)
+            ir = IR.from_dict(data)
+            ir.normalize_positions()
+            sanity_check(ir)
+            bricks = fill_ir(ir) + resolve_special_parts(ir)
+            ldr = render_to_string(bricks, model_name=ir.name)
+            return {"ok": True, "name": ir.name, "bricks": len(bricks), "ldr": ldr}
+        except Exception as exc:  # noqa: BLE001 — retry with a fresh generation
+            last_error = exc
+
+    return {
+        "ok": False,
+        "error": f"{type(last_error).__name__}: {last_error} (failed after {MAX_ATTEMPTS} attempts)",
+        "raw": last_raw[:2000],
+    }
 
 
 def main() -> int:

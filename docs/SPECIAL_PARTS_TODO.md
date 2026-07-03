@@ -148,6 +148,32 @@ end-to-end; these are catalog/ranking-quality issues one layer down.
    work — much narrower than a full Gurobi/HiGHS stability solve. Not built
    as part of this pass; do it only if it's about to be seen.
 
+5. **`tapered_slab` can only narrow, never widen — flared features can't be
+   expressed (found 2026-07-02, prompt: "80's 911 targa").** This is
+   roadmap **#3** territory (shape vocabulary), not special-parts, but
+   logged here per the same "known limitation, not fixed now" convention.
+
+   `worker/ir_schema.py`'s `SubAssembly.__post_init__` requires
+   `taper_to_studs <= wide_dim` — the tapered end must be narrower than (or
+   equal to) the base. A 911 Targa's flared rear fenders are wider at the
+   tail than mid-body, which is the opposite direction. Confirmed
+   systematic, not one bad draw: 3/3 live generations of "80's 911 targa"
+   failed at the schema-validation stage with the same error class
+   (`taper_to_studs (N) must be <= the tapered dimension (M)`, different
+   sub-assembly names each time — `front_nose_taper`, `tail_taper`), i.e.
+   Claude reliably reaches for a widening taper to express this specific
+   car's shape and reliably gets rejected.
+
+   **Not fixed now.** The car still generates a recognizable, valid result
+   without it (55 bricks, wheels, headlights) — the schema validator is
+   doing its job correctly by rejecting the invalid shape rather than
+   producing a broken `.ldr`. A real fix means either extending
+   `tapered_slab` (or adding a new shape) to support widening, or nudging
+   the system prompt to decompose flared features as stacked boxes of
+   increasing width instead of one tapered primitive — either is a genuine
+   roadmap #3 decision, not a one-line patch, and one car prompt surfacing
+   it isn't sufficient reason to make that call under time pressure.
+
 ## Non-issues (deliberate design choices)
 
 - `public/ldraw` added to `catalog.py`'s `_LDRAW_ROOT_CANDIDATES` so local
