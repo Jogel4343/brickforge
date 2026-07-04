@@ -145,7 +145,13 @@ export default function LdrawViewer({
       modelUrl ??
       "https://raw.githubusercontent.com/mrdoob/three.js/master/examples/models/ldraw/officialLibrary/models/car.ldr_Packed.mpd";
 
-    loader.load(
+    // CRITICAL FIX: preload the LDraw color palette (LDConfig.ldr) before
+    // loading the model. Without this, every colour code that isn't already
+    // embedded in the file falls back to LDrawLoader.missingColorMaterial
+    // (magenta 0xFF00FF). Packed .mpd files embed materials so this step
+    // was silently unnecessary for the default demo car; plain .ldr files
+    // need it.
+    const doLoad = () => loader.load(
       url,
       (group) => {
         if (stateRef.current.model) {
@@ -264,6 +270,15 @@ export default function LdrawViewer({
         setLoading(false);
       }
     );
+    loader
+      .preloadMaterials(`${partsLibraryPath}LDConfig.ldr`)
+      .then(doLoad)
+      .catch((err: unknown) => {
+        // Non-fatal — attempt the load anyway; colours will just fall back.
+        // eslint-disable-next-line no-console
+        console.warn("LDrawLoader: preloadMaterials failed", err);
+        doLoad();
+      });
   }, [modelUrl, partsLibraryPath]);
 
   // -------- Explode view (radial, distance-scaled) --------
